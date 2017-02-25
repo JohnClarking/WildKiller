@@ -5,3 +5,16 @@ Saved
 *.pdb
 WildKiller/WildKiller.opensdf
 *.suo
+/WildKiller/*.sln
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-3629-Win64-DebugGame.dll
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-3629-Win64-DebugGame.pdb
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-4138-Win64-DebugGame.dll
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-4138-Win64-DebugGame.pdb
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-8200-Win64-DebugGame.dll
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-8200-Win64-DebugGame.pdb
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-8698-Win64-DebugGame.dll
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-8698-Win64-DebugGame.pdb
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-9685-Win64-DebugGame.dll
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-9685-Win64-DebugGame.pdb
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-Win64-DebugGame.dll
+/WildKiller/Binaries/Win64/UE4Editor-WildKiller-Win64-DebugGame.pdb
