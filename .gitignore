@@ -18,3 +18,7 @@ WildKiller/WildKiller.opensdf
 /WildKiller/Binaries/Win64/UE4Editor-WildKiller-9685-Win64-DebugGame.pdb
 /WildKiller/Binaries/Win64/UE4Editor-WildKiller-Win64-DebugGame.dll
 /WildKiller/Binaries/Win64/UE4Editor-WildKiller-Win64-DebugGame.pdb
+*.exe
+WildKiller/Binaries/Win64/WildKiller.exp
+*.log
+WildKiller/Binaries/Win64/WildKiller.lib
