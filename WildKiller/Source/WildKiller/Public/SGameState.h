@@ -12,8 +12,4 @@ UCLASS()
 class WILDKILLER_API ASGameState : public AGameState
 {
 	GENERATED_BODY()
-	
-	
-	
-	
 };
