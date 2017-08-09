@@ -8,7 +8,7 @@
 /**
  * 
  */
-UCLASS()
+UCLASS(ABSTRACT)
 class WILDKILLER_API ASCoopGameMode : public ASGameMode
 {
 	GENERATED_BODY()
