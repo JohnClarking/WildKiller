@@ -12,8 +12,8 @@ ASConsumableActor::ASConsumableActor(const class FObjectInitializer& ObjectIniti
 	Nutrition = 20;
 
 	bAllowRespawn = true;
-	RespawnDelay = 60.0f;
-	RespawnDelayRange = 20.0f;
+	RespawnDelay = 120.0f;
+	RespawnDelayRange = 120.0f;
 }
 
 
@@ -22,8 +22,7 @@ void ASConsumableActor::OnUsed(APawn* InstigatorPawn)
 	ASCharacter* Pawn = Cast<ASCharacter>(InstigatorPawn);
 	if (Pawn)
 	{
-		/* Restore some hitpoints and energy (hunger) */
-		Pawn->RestoreCondition(Nutrition * 0.5f, Nutrition);
+		Pawn->ConsumeFood(Nutrition);
 	}
 
 	Super::OnUsed(InstigatorPawn);

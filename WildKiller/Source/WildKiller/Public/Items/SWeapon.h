@@ -41,7 +41,7 @@ class WILDKILLER_API ASWeapon : public AActor
 
 	bool bPendingEquip;
 
-	FTimerHandle TimerHandle_HandleFiring;
+	FTimerHandle HandleFiringTimerHandle;
 
 	FTimerHandle EquipFinishedTimerHandle;
 

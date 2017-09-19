@@ -32,8 +32,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float RotateSpeed;
 
-	void RotateActorAroundPoint(AActor* RotateActor, FVector RotationPoint, FRotator AddRotation);
-
 public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Pickup")

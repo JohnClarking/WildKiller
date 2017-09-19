@@ -18,19 +18,7 @@ class WILDKILLER_API ASPlayerCameraManager : public APlayerCameraManager
 	/* Update the FOV */
 	virtual void UpdateCamera(float DeltaTime) override;
 
-	virtual void BeginPlay() override;
-
-	float CurrentCrouchOffset;
-
-	/* Maximum camera offset applied when crouch is initiated. Always lerps back to zero */
-	float MaxCrouchOffsetZ;
-
-	float CrouchLerpVelocity;
-
-	bool bWasCrouched;
-
-	/* Default relative Z offset of the player camera */
-	float DefaultCameraOffsetZ;
+public:
 
 	/* default, hip fire FOV */
 	float NormalFOV;

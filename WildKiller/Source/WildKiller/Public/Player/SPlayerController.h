@@ -17,13 +17,12 @@ class WILDKILLER_API ASPlayerController : public APlayerController
 	ASPlayerController(const FObjectInitializer& ObjectInitializer);
 
 	/* Flag to respawn or start spectating upon death */
-	UPROPERTY(EditDefaultsOnly, Category = "Spawning")
 	bool bRespawnImmediately;
 	
 	/* Respawn or start spectating after dying */
 	virtual void UnFreeze() override;
 
-	UFUNCTION(Reliable, Server, WithValidation)
+	UFUNCTION(reliable, server, WithValidation)
 	void ServerSuicide();
 
 	void ServerSuicide_Implementation();
@@ -32,15 +31,10 @@ class WILDKILLER_API ASPlayerController : public APlayerController
 
 public:
 
-	UFUNCTION(Reliable, Client)
+	UFUNCTION(reliable, client)
 	void ClientHUDStateChanged(EHUDState NewState);
 
 	void ClientHUDStateChanged_Implementation(EHUDState NewState);
-
-	UFUNCTION(Reliable, Client)
-	void ClientMessageReceived(const FString& TextMessage);
-
-	void ClientMessageReceived_Implementation(const FString& TextMessage);
 
 	/* Kill the current pawn */
 	UFUNCTION(exec)

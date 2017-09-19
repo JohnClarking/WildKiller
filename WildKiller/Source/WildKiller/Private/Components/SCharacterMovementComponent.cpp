@@ -2,7 +2,7 @@
 
 #include "WildKiller.h"
 #include "SCharacterMovementComponent.h"
-#include "SBaseCharacter.h"
+#include "SCharacter.h"
 
 
 
@@ -10,11 +10,11 @@ float USCharacterMovementComponent::GetMaxSpeed() const
 {
 	float MaxSpeed = Super::GetMaxSpeed();
 
-	const ASBaseCharacter* CharOwner = Cast<ASBaseCharacter>(PawnOwner);
+	const ASCharacter* CharOwner = Cast<ASCharacter>(PawnOwner);
 	if (CharOwner)
 	{
-		// Slow down during targeting or crouching
-		if (CharOwner->IsTargeting() && !IsCrouching())
+		// Slow down during targeting, but don't further reduce movement speed while also crouching
+		if (CharOwner->IsTargeting() && !CharOwner->GetMovementComponent()->IsCrouching())
 		{
 			MaxSpeed *= CharOwner->GetTargetingSpeedModifier();
 		}

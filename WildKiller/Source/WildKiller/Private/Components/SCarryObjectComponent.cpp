@@ -32,7 +32,7 @@ void USCarryObjectComponent::TickComponent(float DeltaSeconds, enum ELevelTick T
 		}
 		else
 		{
-			/* NOTE: Slightly changed code from base implementation (USpringArmComponent) to use RemoteViewPitch instead of non-replicated ControlRotation */
+			/* NOTE: Slightly changed code from base implementation to use RemoteViewPitch instead of non-replicated ControlRotation */
 			if (bUsePawnControlRotation)
 			{
 				{
@@ -107,7 +107,7 @@ AActor* USCarryObjectComponent::GetActorInView()
 	TraceParams.bTraceComplex = false;
 
 	FHitResult Hit(ForceInit);
-	GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, TraceParams);
+	GetWorld()->LineTraceSingle(Hit, TraceStart, TraceEnd, ECC_Visibility, TraceParams);
 
 	//DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Red, false, 1.0f);
 
@@ -194,23 +194,6 @@ void USCarryObjectComponent::Rotate(float Direction)
 }
 
 
-void USCarryObjectComponent::RotateActorAroundPoint(AActor* RotateActor, FVector RotationPoint, FRotator AddRotation)
-{
-	FVector Loc = RotateActor->GetActorLocation() - RotationPoint;
-	FVector RotatedLoc = AddRotation.RotateVector(Loc);
-
-	FVector NewLoc = RotationPoint + RotatedLoc;
-	
-	/* Compose the rotators, use Quats to avoid gimbal lock */
-	FQuat AQuat = FQuat(RotateActor->GetActorRotation());
-	FQuat BQuat = FQuat(AddRotation);
-
-	FRotator NewRot = FRotator(BQuat*AQuat);
-
-	RotateActor->SetActorLocationAndRotation(NewLoc, NewRot);
-}
-
-
 void USCarryObjectComponent::OnPickupMulticast_Implementation(AActor* FocusActor)
 {
 	if (FocusActor && FocusActor->IsRootComponentMovable())
@@ -252,11 +235,7 @@ void USCarryObjectComponent::OnRotateMulticast_Implementation(float Direction)
 	AActor* CarriedActor = GetCarriedActor();
 	if (CarriedActor)
 	{
-		/* Retrieve the object center */
-		FVector RootOrigin = GetCarriedActor()->GetRootComponent()->Bounds.Origin;
-		FRotator AddRot = FRotator(Direction * RotateSpeed, 0, 0);
-
-		RotateActorAroundPoint(CarriedActor, RootOrigin, AddRot);
+		CarriedActor->AddActorWorldRotation(FRotator(Direction * RotateSpeed, 0, 0));
 	}
 }
 

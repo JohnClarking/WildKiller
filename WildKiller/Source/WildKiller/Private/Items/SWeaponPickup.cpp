@@ -36,10 +36,16 @@ void ASWeaponPickup::OnUsed(APawn* InstigatorPawn)
 		}
 		else
 		{
-			ASPlayerController* PC = Cast<ASPlayerController>(MyPawn->GetController());
-			if (PC)
+			// TODO - FIXME: Send message request to client.
+
+			ASPlayerController* MyController = Cast<ASPlayerController>(MyPawn->GetController());
+			if (MyController)
 			{
-				PC->ClientMessageReceived("Weapon slot already taken.");
+				ASHUD* MyHUD = Cast<ASHUD>(MyController->GetHUD());
+				if (MyHUD)
+				{
+					MyHUD->MessageReceived("Weapon slot already taken.");
+				}
 			}
 		}
 	}

@@ -94,13 +94,3 @@ void ASPlayerController::ClientHUDStateChanged_Implementation(EHUDState NewState
 		MyHUD->OnStateChanged(NewState);
 	}
 }
-
-
-void ASPlayerController::ClientMessageReceived_Implementation(const FString& TextMessage)
-{
-	ASHUD* MyHUD = Cast<ASHUD>(GetHUD());
-	if (MyHUD)
-	{
-		MyHUD->MessageReceived(TextMessage);
-	}
-}

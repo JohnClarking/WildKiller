@@ -318,7 +318,7 @@ FHitResult ASWeapon::WeaponTrace(const FVector& TraceFrom, const FVector& TraceT
 	TraceParams.bReturnPhysicalMaterial = true;
 
 	FHitResult Hit(ForceInit);
-	GetWorld()->LineTraceSingleByChannel(Hit, TraceFrom, TraceTo, COLLISION_WEAPON, TraceParams);
+	GetWorld()->LineTraceSingle(Hit, TraceFrom, TraceTo, COLLISION_WEAPON, TraceParams);
 
 	return Hit;
 }
@@ -375,11 +375,10 @@ void ASWeapon::HandleFiring()
 			ServerHandleFiring();
 		}
 
-		/* Retrigger HandleFiring on a delay for automatic weapons */
 		bRefiring = (CurrentState == EWeaponState::Firing && TimeBetweenShots > 0.0f);
 		if (bRefiring)
 		{
-			GetWorldTimerManager().SetTimer(TimerHandle_HandleFiring, this, &ASWeapon::HandleFiring, TimeBetweenShots, false);
+			GetWorldTimerManager().SetTimer(HandleFiringTimerHandle, this, &ASWeapon::HandleFiring, TimeBetweenShots, false);
 		}
 	}
 
@@ -525,7 +524,7 @@ void ASWeapon::OnBurstStarted()
 	if (LastFireTime > 0 && TimeBetweenShots > 0.0f &&
 		LastFireTime + TimeBetweenShots > GameTime)
 	{
-		GetWorldTimerManager().SetTimer(TimerHandle_HandleFiring, this, &ASWeapon::HandleFiring, LastFireTime + TimeBetweenShots - GameTime, false);
+		GetWorldTimerManager().SetTimer(HandleFiringTimerHandle, this, &ASWeapon::HandleFiring, LastFireTime + TimeBetweenShots - GameTime, false);
 	}
 	else
 	{
@@ -543,7 +542,7 @@ void ASWeapon::OnBurstFinished()
 		StopSimulatingWeaponFire();
 	}
 
-	GetWorldTimerManager().ClearTimer(TimerHandle_HandleFiring);
+	GetWorldTimerManager().ClearTimer(HandleFiringTimerHandle);
 	bRefiring = false;
 }
 

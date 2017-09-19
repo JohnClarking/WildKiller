@@ -49,16 +49,3 @@ void ASHUD::DrawCenterDot()
 		}
 	}
 }
-
-
-
-void ASHUD::OnStateChanged_Implementation(EHUDState NewState)
-{
-	CurrentState = NewState;
-}
-
-
-EHUDState ASHUD::GetCurrentState()
-{
-	return CurrentState;
-}

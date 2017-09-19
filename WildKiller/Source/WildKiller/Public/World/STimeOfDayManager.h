@@ -10,12 +10,6 @@ class WILDKILLER_API ASTimeOfDayManager : public AActor
 {
 	GENERATED_BODY()
 
-protected:
-
-	UAudioComponent* AmbientAudioComp;
-
-	ASTimeOfDayManager();
-
 	/* Cached bool of bIsNight to determine when we entered/left the night */
 	bool LastNightState;
 
@@ -25,16 +19,18 @@ protected:
 	/* Target brightness to lerp towards */
 	float TargetSunBrightness;
 
+protected:
+
+	UAudioComponent* AmbientAudioComp;
+
 public:	
+	ASTimeOfDayManager();
 
 	virtual void BeginPlay() override;
 
 	virtual void Tick(float DeltaSeconds) override;	
 
 	void UpdateSkylight();
-
-	/* Play the ambient loop for the current time state */
-	void PlayAmbientLoop();
 
 	/* Primary sun of the level. Assigned in Blueprint during BeginPlay (BlueprintReadWrite is required as tag instead of EditDefaultsOnly) */
 	UPROPERTY(BlueprintReadWrite, Category = "DayNight")

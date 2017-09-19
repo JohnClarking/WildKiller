@@ -111,23 +111,10 @@ void ASGameState::BroadcastGameMessage_Implementation(const FString& NewMessage)
 }
 
 
-int32 ASGameState::GetTotalScore()
-{
-	return TotalScore;
-}
-
-
-void ASGameState::AddScore(int32 Score)
-{
-	TotalScore += Score;
-}
-
-
 void ASGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ASGameState, ElapsedGameMinutes);
 	DOREPLIFETIME(ASGameState, bIsNight);
-	DOREPLIFETIME(ASGameState, TotalScore);
 }

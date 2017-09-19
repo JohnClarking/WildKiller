@@ -16,6 +16,4 @@
 * also DefaultEngine.ini [/Script/Engine.PhysicsSettings] should match with this list **/
 #define SURFACE_DEFAULT				SurfaceType_Default
 #define SURFACE_FLESH				SurfaceType1
-#define SURFACE_ZOMBIEBODY			SurfaceType2
-#define SURFACE_ZOMBIEHEAD			SurfaceType3
-#define SURFACE_ZOMBIELIMB			SurfaceType4
+#define SURFACE_ZOMBIE				SurfaceType2

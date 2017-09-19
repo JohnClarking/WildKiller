@@ -13,7 +13,7 @@
 
 // Sets default values
 ASCharacter::ASCharacter(const class FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<USCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -44,14 +44,14 @@ ASCharacter::ASCharacter(const class FObjectInitializer& ObjectInitializer)
 	CarriedObjectComp->AttachParent = GetRootComponent();
 
 	MaxUseDistance = 500;
-	DropWeaponMaxDistance = 100;
+	DropItemDistance = 100;
 	bHasNewFocus = true;
 	TargetingSpeedModifier = 0.5f;
 	SprintingSpeedModifier = 2.5f;
 
 	Health = 100;
 
-	IncrementHungerAmount = 5.0f;
+	IncrementHungerAmount = 1.0f;
 	IncrementHungerInterval = 5.0f;
 	CriticalHungerThreshold = 90;
 	HungerDamagePerInterval = 1.0f;
@@ -218,7 +218,7 @@ ASUsableActor* ASCharacter::GetUsableInView()
 	TraceParams.bTraceComplex = false;
 
 	FHitResult Hit(ForceInit);
-	GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, TraceParams);
+	GetWorld()->LineTraceSingle(Hit, TraceStart, TraceEnd, ECC_Visibility, TraceParams);
 
 	//DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Red, false, 1.0f);
 
@@ -273,6 +273,42 @@ void ASCharacter::OnEndTargeting()
 }
 
 
+void ASCharacter::SetTargeting(bool NewTargeting)
+{
+	bIsTargeting = NewTargeting;
+
+	if (Role < ROLE_Authority)
+	{
+		ServerSetTargeting(NewTargeting);
+	}
+}
+
+
+void ASCharacter::ServerSetTargeting_Implementation(bool NewTargeting)
+{
+	SetTargeting(NewTargeting);
+}
+
+
+bool ASCharacter::ServerSetTargeting_Validate(bool NewTargeting)
+{
+	return true;
+}
+
+
+
+bool ASCharacter::IsTargeting() const
+{
+	return bIsTargeting;
+}
+
+
+float ASCharacter::GetTargetingSpeedModifier() const
+{
+	return TargetingSpeedModifier;
+}
+
+
 void ASCharacter::OnStartJump()
 {
 	bPressedJump = true;
@@ -312,29 +348,36 @@ void ASCharacter::SetIsJumping(bool NewJumping)
 }
 
 
-void ASCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
+void ASCharacter::OnLanded(const FHitResult& Hit)
 {
-	Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
+	Super::OnLanded(Hit);
 
-	/* Check if we are no longer falling/jumping */
-	if (PrevMovementMode == EMovementMode::MOVE_Falling && 
-		GetCharacterMovement()->MovementMode != EMovementMode::MOVE_Falling)
-	{
-		SetIsJumping(false);
-	}
+	SetIsJumping(false);
 }
-
-
 
 void ASCharacter::ServerSetIsJumping_Implementation(bool NewJumping)
 {
 	SetIsJumping(NewJumping);
 }
 
-
 bool ASCharacter::ServerSetIsJumping_Validate(bool NewJumping)
 {
 	return true;
+}
+
+void ASCharacter::SetSprinting(bool NewSprinting)
+{
+	bWantsToRun = NewSprinting;
+
+	if (bIsCrouched)
+		UnCrouch();
+
+	// TODO: Stop weapon fire
+
+	if (Role < ROLE_Authority)
+	{
+		ServerSetSprinting(NewSprinting);
+	}
 }
 
 
@@ -355,14 +398,46 @@ void ASCharacter::OnStopSprinting()
 }
 
 
+void ASCharacter::ServerSetSprinting_Implementation(bool NewSprinting)
+{
+	SetSprinting(NewSprinting);
+}
+
+
+bool ASCharacter::ServerSetSprinting_Validate(bool NewSprinting)
+{
+	return true;
+}
+
+
+bool ASCharacter::IsSprinting() const
+{
+	if (!GetCharacterMovement())
+		return false;
+
+	return bWantsToRun && !IsTargeting() && !GetVelocity().IsZero() 
+		// Don't allow sprint while strafing sideways or standing still (1.0 is straight forward, -1.0 is backward while near 0 is sideways or standing still)
+		&& (FVector::DotProduct(GetVelocity().GetSafeNormal2D(), GetActorRotation().Vector()) > 0.8); // Changing this value to 0.1 allows for diagonal sprinting. (holding W+A or W+D keys)
+}
+
+
+float ASCharacter::GetSprintingSpeedModifier() const
+{
+	return SprintingSpeedModifier;
+}
+
+
 void ASCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	// Value is already updated locally, skip in replication step
+	DOREPLIFETIME_CONDITION(ASCharacter, bWantsToRun, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(ASCharacter, bIsTargeting, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ASCharacter, bIsJumping, COND_SkipOwner);
 
 	// Replicate to every client, no special condition required
+	DOREPLIFETIME(ASCharacter, Health);
 	DOREPLIFETIME(ASCharacter, Hunger);
 
 	DOREPLIFETIME(ASCharacter, LastTakeHitInfo);
@@ -375,11 +450,6 @@ void ASCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 
 void ASCharacter::OnCrouchToggle()
 {
-	if (IsSprinting())
-	{
-		SetSprinting(false);
-	}
-
 	// If we are crouching then CanCrouch will return false. If we cannot crouch then calling Crouch() wont do anything
 	if (CanCrouch())
 	{
@@ -389,6 +459,16 @@ void ASCharacter::OnCrouchToggle()
 	{
 		UnCrouch();
 	}
+}
+
+
+FRotator ASCharacter::GetAimOffsets() const
+{
+	const FVector AimDirWS = GetBaseAimRotation().Vector();
+	const FVector AimDirLS = ActorToWorld().InverseTransformVectorNoScale(AimDirWS);
+	const FRotator AimRotLS = AimDirLS.Rotation();
+
+	return AimRotLS;
 }
 
 
@@ -404,18 +484,22 @@ float ASCharacter::GetMaxHunger() const
 }
 
 
-void ASCharacter::RestoreCondition(float HealthRestored, float HungerRestored)
+void ASCharacter::ConsumeFood(float AmountRestored)
 {
 	// Reduce Hunger, ensure we do not go outside of our bounds
-	Hunger = FMath::Clamp(Hunger - HungerRestored, 0.0f, GetMaxHunger());
+	Hunger = FMath::Clamp(Hunger - AmountRestored, 0.0f, GetMaxHunger());
 
 	// Restore Hitpoints
-	Health = FMath::Clamp(Health + HealthRestored, 0.0f, GetMaxHealth());
+	Health = FMath::Clamp(Health + AmountRestored, 0.0f, GetMaxHealth());
 
-	ASPlayerController* PC = Cast<ASPlayerController>(Controller);
+	APlayerController* PC = Cast<APlayerController>(Controller);
 	if (PC)
 	{
-		PC->ClientMessageReceived("Energy Restored");
+		ASHUD* MyHUD = Cast<ASHUD>(PC->GetHUD());
+		if (MyHUD)
+		{
+			MyHUD->MessageReceived("Food consumed!");
+		}
 	}
 }
 
@@ -519,7 +603,8 @@ void ASCharacter::DestroyInventory()
 		ASWeapon* Weapon = Inventory[i];
 		if (Weapon)
 		{
-			RemoveWeapon(Weapon, true);
+			RemoveWeapon(Weapon);
+			Weapon->Destroy();
 		}
 	}
 }
@@ -622,7 +707,7 @@ void ASCharacter::AddWeapon(class ASWeapon* Weapon)
 }
 
 
-void ASCharacter::RemoveWeapon(class ASWeapon* Weapon, bool bDestroy)
+void ASCharacter::RemoveWeapon(class ASWeapon* Weapon)
 {
 	if (Weapon && Role == ROLE_Authority)
 	{
@@ -636,20 +721,11 @@ void ASCharacter::RemoveWeapon(class ASWeapon* Weapon, bool bDestroy)
 
 		/* Replace weapon if we removed our current weapon */
 		if (bIsCurrent && Inventory.Num() > 0)
-		{
 			SetCurrentWeapon(Inventory[0]);
-		}			
 
 		/* Clear reference to weapon if we have no items left in inventory */
 		if (Inventory.Num() == 0)
-		{
 			SetCurrentWeapon(nullptr);
-		}
-
-		if (bDestroy)
-		{
-			Weapon->Destroy();
-		}
 	}
 }
 
@@ -771,41 +847,13 @@ void ASCharacter::DropWeapon()
 		FRotator CamRot;
 
 		if (Controller == nullptr)
-		{
 			return;
-		}		
-		
-		/* Find a location to drop the item, slightly in front of the player.
-			Perform ray trace to check for blocking objects or walls and to make sure we don't drop any item through the level mesh */
+
+		/* Find a location to drop the item, slightly in front of the player. */
 		Controller->GetPlayerViewPoint(CamLoc, CamRot);
-		FVector SpawnLocation;
-		FRotator SpawnRotation = CamRot;
-
 		const FVector Direction = CamRot.Vector();
-		const FVector TraceStart = GetActorLocation();
-		const FVector TraceEnd = GetActorLocation() + (Direction * DropWeaponMaxDistance);
+		const FVector SpawnLocation = GetActorLocation() + (Direction * DropItemDistance);
 
-		/* Setup the trace params, we are only interested in finding a valid drop position */
-		FCollisionQueryParams TraceParams;
-		TraceParams.bTraceComplex = false;
-		TraceParams.bReturnPhysicalMaterial = false;
-		TraceParams.AddIgnoredActor(this);
-
-		FHitResult Hit;
-		GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_WorldDynamic, TraceParams);
-
-		/* Find farthest valid spawn location */
-		if (Hit.bBlockingHit)
-		{
-			/* Slightly move away from impacted object */
-			SpawnLocation = Hit.ImpactPoint + (Hit.ImpactNormal * 20);
-		}
-		else
-		{
-			SpawnLocation = TraceEnd;
-		}
-
-		/* Spawn the "dropped" weapon */
 		FActorSpawnParameters SpawnInfo;
 		SpawnInfo.bNoCollisionFail = true;
 		ASWeaponPickup* NewWeaponPickup = GetWorld()->SpawnActor<ASWeaponPickup>(CurrentWeapon->WeaponPickupClass, SpawnLocation, FRotator::ZeroRotator, SpawnInfo);
@@ -821,7 +869,7 @@ void ASCharacter::DropWeapon()
 			}
 		}
 
-		RemoveWeapon(CurrentWeapon, true);
+		RemoveWeapon(CurrentWeapon);
 	}
 }
 
@@ -966,15 +1014,4 @@ void ASCharacter::SwapToNewWeaponMesh()
 	{
 		CurrentWeapon->AttachMeshToPawn(EInventorySlot::Hands);
 	}
-}
-
-
-void ASCharacter::SetSprinting(bool NewSprinting)
-{
-	if (bWantsToRun)
-	{
-		StopWeaponFire();
-	}
-
-	Super::SetSprinting(NewSprinting);
 }
