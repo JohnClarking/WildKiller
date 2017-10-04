@@ -8,7 +8,7 @@
 /**
  * 
  */
-UCLASS(ABSTRACT)
+UCLASS()
 class WILDKILLER_API ASOpenWorldGameMode : public ASGameMode
 {
 	GENERATED_BODY()
@@ -16,5 +16,5 @@ class WILDKILLER_API ASOpenWorldGameMode : public ASGameMode
 	ASOpenWorldGameMode(const FObjectInitializer& ObjectInitializer);
 	
 	/* Don't allow spectating of other players or bots */
-	virtual bool CanSpectate_Implementation(APlayerController* Viewer, APlayerState* ViewTarget) override;
+	virtual bool CanSpectate(APlayerController* Viewer, APlayerState* ViewTarget) override;
 };
