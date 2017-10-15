@@ -8,7 +8,7 @@
 /**
  * 
  */
-UCLASS()
+UCLASS(ABSTRACT)
 class WILDKILLER_API ASOpenWorldGameMode : public ASGameMode
 {
 	GENERATED_BODY()
