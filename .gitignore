@@ -9,5 +9,6 @@ Saved
 *-DebugGame.dll
 WildKiller/Binaries/Win64/WildKiller.exp
 WildKiller/Binaries/Win64/WildKiller.lib
+WildKiller/Releases
 *.log
 *.target.xml
