@@ -12,3 +12,6 @@ WildKiller/Binaries/Win64/WildKiller.lib
 WildKiller/Releases
 *.log
 *.target.xml
+*.target
+*.modules
+*.opendb
