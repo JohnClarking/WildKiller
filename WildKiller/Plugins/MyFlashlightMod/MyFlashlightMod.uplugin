@@ -6,7 +6,7 @@
 	"VersionName" : "1.0",
 	"CreatedBy" : "Herman Chia",
 	"CreatedByURL" : "http://www.moichia.com",
-	"EngineVersion" : "4.18.0",
+	"EngineVersion" : "4.20.0",
 	"Description" : "My Flashlight Mod",
 	"Category" : "User Mod",
 	"EnabledByDefault" : true,
