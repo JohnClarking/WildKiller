@@ -1,6 +1,5 @@
 Intermediate
 Saved
-DerivedDataCache
 .vs
 *.sdf
 *.opensdf
@@ -17,8 +16,3 @@ WildKiller/Releases
 *.target
 *.modules
 *.opendb
-*.sym
-*.debug
-spatial/schema
-spatial/logs
-spatial/build
