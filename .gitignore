@@ -1,5 +1,6 @@
 Intermediate
 Saved
+DerivedDataCache
 .vs
 *.sdf
 *.opensdf
@@ -8,6 +9,8 @@ Saved
 *.pdb
 *.exe
 *-DebugGame.dll
+*.sym
+*.debug
 WildKiller/Binaries/Win64/WildKiller.exp
 WildKiller/Binaries/Win64/WildKiller.lib
 WildKiller/Releases
