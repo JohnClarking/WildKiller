@@ -5,9 +5,21 @@ using System.Collections.Generic;
 
 public class WildKillerTarget : TargetRules
 {
-	public WildKillerTarget(TargetInfo Target) : base(Target)
-    {
+	public WildKillerTarget(TargetInfo Target)
+	{
 		Type = TargetType.Game;
-        ExtraModuleNames.AddRange(new string[] { "WildKiller" });
-    }
+	}
+
+	//
+	// TargetRules interface.
+	//
+
+	public override void SetupBinaries(
+		TargetInfo Target,
+		ref List<UEBuildBinaryConfiguration> OutBuildBinaryConfigurations,
+		ref List<string> OutExtraModuleNames
+		)
+	{
+		OutExtraModuleNames.AddRange( new string[] { "WildKiller" } );
+	}
 }

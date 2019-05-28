@@ -11,9 +11,7 @@
 UCLASS()
 class WILDKILLER_API ASPlayerCameraManager : public APlayerCameraManager
 {
-	GENERATED_BODY()
-
-	ASPlayerCameraManager(const FObjectInitializer& ObjectInitializer);
+	GENERATED_UCLASS_BODY()
 
 	/* Update the FOV */
 	virtual void UpdateCamera(float DeltaTime) override;

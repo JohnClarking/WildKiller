@@ -11,13 +11,7 @@
 UCLASS()
 class WILDKILLER_API ASBombActor : public ASUsableActor
 {
-	GENERATED_BODY()
-
-	ASBombActor(const FObjectInitializer& ObjectInitializer);
-
-protected:
-
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	GENERATED_UCLASS_BODY()
 
 	UPROPERTY(VisibleDefaultsOnly)
 	UParticleSystemComponent* ExplosionPCS;
@@ -43,8 +37,6 @@ protected:
 	/* Is fuze lit and counting down */
 	bool bIsFuzeActive;
 
-	bool bExploded;
-
 	/* Initial time on the fuze */
 	UPROPERTY(EditDefaultsOnly, Category = "Bomb|Settings")
 	float MaxFuzeTime;
@@ -58,22 +50,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Bomb|Settings")
 	TSubclassOf<UDamageType> DamageType;
 
-	/* Handle to manage the timer */
-	FTimerHandle FuzeTimerHandle;
+	virtual void BeginPlay() override;
 
 	/* Activates the bomb fuze */
 	virtual void OnUsed(APawn* InstigatorPawn) override;
 	
 	/* Explode the bomb */
 	void OnExplode();
-
-	UFUNCTION(Reliable, NetMulticast)
-	void SimulateFuzeFX();
-
-	void SimulateFuzeFX_Implementation();
-
-	UFUNCTION(Reliable, NetMulticast)
-	void SimulateExplosion();
-
-	void SimulateExplosion_Implementation();
 };

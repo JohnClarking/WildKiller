@@ -5,16 +5,12 @@
 #include "GameFramework/Actor.h"
 #include "SUsableActor.generated.h"
 
-UCLASS(ABSTRACT)
+UCLASS()
 class WILDKILLER_API ASUsableActor : public AActor
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
-protected:
-
-	ASUsableActor(const FObjectInitializer& ObjectInitializer);
-
-	UPROPERTY(VisibleAnywhere, Category = "Mesh")
+	UPROPERTY(EditDefaultsOnly, Category = "Mesh")
 	UStaticMeshComponent* MeshComp;
 
 public:
@@ -28,9 +24,4 @@ public:
 	/* Called when player interacts with object */
 	virtual void OnUsed(APawn* InstigatorPawn);
 	
-	/* Public accessor to the mesh component. With FORCEINLINE we are allowed to define the function in the header, use this only for simple accessors! */
-	FORCEINLINE UStaticMeshComponent* GetMeshComponent() const
-	{
-		return MeshComp;
-	}
 };

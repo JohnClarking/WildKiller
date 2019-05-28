@@ -1,24 +1,13 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{731364D0-46F5-10AD-6C88-A2A712716860}",
+	"EngineAssociation": "4.7",
 	"Category": "",
 	"Description": "",
 	"Modules": [
 		{
 			"Name": "WildKiller",
 			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"AdditionalDependencies": [
-				"Engine",
-				"UMG",
-				"SpatialGDK"
-			]
-		}
-	],
-	"Plugins": [
-		{
-			"Name": "SpatialGDK",
-			"Enabled": true
+			"LoadingPhase": "Default"
 		}
 	]
 }
