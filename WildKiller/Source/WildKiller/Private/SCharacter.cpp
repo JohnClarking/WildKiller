@@ -7,6 +7,7 @@
 #include "SWeapon.h"
 #include "SWeaponPickup.h"
 #include "SCharacterMovementComponent.h"
+#include "SCarryObjectComponent.h"
 #include "SBaseCharacter.h"
 
 
@@ -39,6 +40,9 @@ ASCharacter::ASCharacter(const class FObjectInitializer& ObjectInitializer)
 	CameraComp = ObjectInitializer.CreateDefaultSubobject<UCameraComponent>(this, TEXT("Camera"));
 	CameraComp->AttachParent = CameraBoomComp;
 
+	CarriedObjectComp = ObjectInitializer.CreateDefaultSubobject<USCarryObjectComponent>(this, TEXT("CarriedObjectComp"));
+	CarriedObjectComp->AttachParent = GetRootComponent();
+
 	MaxUseDistance = 500;
 	DropItemDistance = 100;
 	bHasNewFocus = true;
@@ -61,9 +65,9 @@ ASCharacter::ASCharacter(const class FObjectInitializer& ObjectInitializer)
 }
 
 
-void ASCharacter::PostInitializeComponents()
+void ASCharacter::BeginPlay()
 {
-	Super::PostInitializeComponents();
+	Super::BeginPlay();
 
 	if (Role == ROLE_Authority)
 	{
@@ -76,7 +80,6 @@ void ASCharacter::PostInitializeComponents()
 }
 
 
-// Called every frame
 void ASCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -158,6 +161,9 @@ void ASCharacter::SetupPlayerInputComponent(class UInputComponent* InputComponen
 
 	InputComponent->BindAction("EquipPrimaryWeapon", IE_Pressed, this, &ASCharacter::OnEquipPrimaryWeapon);
 	InputComponent->BindAction("EquipSecondaryWeapon", IE_Pressed, this, &ASCharacter::OnEquipSecondaryWeapon);
+
+	/* Input binding for the carry object component */
+	InputComponent->BindAction("PickupObject", IE_Pressed, this, &ASCharacter::OnToggleCarryActor);
 }
 
 
@@ -202,7 +208,7 @@ ASUsableActor* ASCharacter::GetUsableInView()
 	const FVector Direction = CamRot.Vector();
 	const FVector TraceEnd = TraceStart + (Direction * MaxUseDistance);
 
-	FCollisionQueryParams TraceParams(FName(TEXT("TraceUsableActor")), true, this);
+	FCollisionQueryParams TraceParams(TEXT("TraceUsableActor"), true, this);
 	TraceParams.bTraceAsyncScene = true;
 	TraceParams.bReturnPhysicalMaterial = false;
 
@@ -250,6 +256,11 @@ bool ASCharacter::ServerUse_Validate()
 
 void ASCharacter::OnStartTargeting()
 {
+	if (CarriedObjectComp->IsCarryingActor())
+	{
+		CarriedObjectComp->Drop();
+	}
+
 	SetTargeting(true);
 }
 
@@ -370,6 +381,11 @@ void ASCharacter::SetSprinting(bool NewSprinting)
 
 void ASCharacter::OnStartSprinting()
 {
+	if (CarriedObjectComp->IsCarryingActor())
+	{
+		CarriedObjectComp->Drop();
+	}
+
 	SetSprinting(true);
 }
 
@@ -399,7 +415,7 @@ bool ASCharacter::IsSprinting() const
 
 	return bWantsToRun && !IsTargeting() && !GetVelocity().IsZero() 
 		// Don't allow sprint while strafing sideways or standing still (1.0 is straight forward, -1.0 is backward while near 0 is sideways or standing still)
-		&& (GetVelocity().GetSafeNormal2D() | GetActorRotation().Vector()) > 0.8; // Changing this value to 0.1 allows for diagonal sprinting. (holding W+A or W+D keys)
+		&& (FVector::DotProduct(GetVelocity().GetSafeNormal2D(), GetActorRotation().Vector()) > 0.8); // Changing this value to 0.1 allows for diagonal sprinting. (holding W+A or W+D keys)
 }
 
 
@@ -588,8 +604,10 @@ void ASCharacter::DestroyInventory()
 
 void ASCharacter::SetCurrentWeapon(class ASWeapon* NewWeapon, class ASWeapon* LastWeapon)
 {
-	ASWeapon* LocalLastWeapon = nullptr;
+	/* Maintain a reference for visual weapon swapping */
+	PreviousWeapon = LastWeapon;
 
+	ASWeapon* LocalLastWeapon = nullptr;
 	if (LastWeapon)
 	{
 		LocalLastWeapon = LastWeapon;
@@ -600,9 +618,11 @@ void ASCharacter::SetCurrentWeapon(class ASWeapon* NewWeapon, class ASWeapon* La
 	}
 
 	// UnEquip the current
+	bool bHasPreviousWeapon = false;
 	if (LocalLastWeapon)
 	{
 		LocalLastWeapon->OnUnEquip();
+		bHasPreviousWeapon = true;
 	}
 
 	CurrentWeapon = NewWeapon;
@@ -610,8 +630,12 @@ void ASCharacter::SetCurrentWeapon(class ASWeapon* NewWeapon, class ASWeapon* La
 	if (NewWeapon)
 	{
 		NewWeapon->SetOwningPawn(this);
-		NewWeapon->OnEquip();
+		/* Only play equip animation when we already hold an item in hands */
+		NewWeapon->OnEquip(bHasPreviousWeapon);
 	}
+
+	/* NOTE: If you don't have an equip animation w/ animnotify to swap the meshes halfway through, then uncomment this to immediately swap instead */
+	//SwapToNewWeaponMesh();
 }
 
 
@@ -625,9 +649,13 @@ void ASCharacter::EquipWeapon(ASWeapon* Weapon)
 {
 	if (Weapon)
 	{
+		/* Ignore if trying to equip already equipped weapon */
+		if (Weapon == CurrentWeapon)
+			return;
+
 		if (Role == ROLE_Authority)
 		{
-			SetCurrentWeapon(Weapon);
+			SetCurrentWeapon(Weapon, CurrentWeapon);
 		}
 		else
 		{
@@ -657,7 +685,7 @@ void ASCharacter::AddWeapon(class ASWeapon* Weapon)
 		Inventory.AddUnique(Weapon);
 
 		// Equip first weapon in inventory
-		if (Inventory.Num() > 0)
+		if (Inventory.Num() > 0 && CurrentWeapon == nullptr)
 		{
 			EquipWeapon(Inventory[0]);
 		}
@@ -703,6 +731,15 @@ void ASCharacter::OnStartFire()
 	{
 		SetSprinting(false);
 	}
+
+	if (CarriedObjectComp->IsCarryingActor())
+	{
+		StopWeaponFire();
+
+		CarriedObjectComp->Throw();
+		return;
+	}
+
 	StartWeaponFire();
 }
 
@@ -741,6 +778,12 @@ void ASCharacter::StopWeaponFire()
 
 void ASCharacter::OnNextWeapon()
 {
+	if (CarriedObjectComp->IsCarryingActor())
+	{
+		CarriedObjectComp->Rotate(1.0f);
+		return;
+	}
+
 	if (Inventory.Num() >= 2) // TODO: Check for weaponstate.
 	{
 		const int32 CurrentWeaponIndex = Inventory.IndexOfByKey(CurrentWeapon);
@@ -752,6 +795,12 @@ void ASCharacter::OnNextWeapon()
 
 void ASCharacter::OnPrevWeapon()
 {
+	if (CarriedObjectComp->IsCarryingActor())
+	{
+		CarriedObjectComp->Rotate(-1.0f);
+		return;
+	}
+
 	if (Inventory.Num() >= 2) // TODO: Check for weaponstate.
 	{
 		const int32 CurrentWeaponIndex = Inventory.IndexOfByKey(CurrentWeapon);
@@ -849,9 +898,22 @@ void ASCharacter::OnEquipSecondaryWeapon()
 
 bool ASCharacter::WeaponSlotAvailable(EInventorySlot CheckSlot)
 {
+	/* Iterate all weapons to see if requested slot is occupied */
+	for (int32 i = 0; i < Inventory.Num(); i++)
+	{
+		ASWeapon* Weapon = Inventory[i];
+		if (Weapon)
+		{
+			if (Weapon->GetStorageSlot() == CheckSlot)
+				return true;
+		}
+	}
+
+	return false;
+
 	/* Special find function as alternative to looping the array and performing if statements 
 		the [=] prefix means "capture by value", other options include [] "capture nothing" and [&] "capture by reference" */
-	return nullptr == Inventory.FindByPredicate([=](ASWeapon* W){ return W->GetStorageSlot() == CheckSlot; });
+	//return nullptr == Inventory.FindByPredicate([=](ASWeapon* W){ return W->GetStorageSlot() == CheckSlot; });
 }
 
 
@@ -908,5 +970,25 @@ void ASCharacter::KilledBy(class APawn* EventInstigator)
 		}
 
 		Die(Health, FDamageEvent(UDamageType::StaticClass()), Killer, nullptr);
+	}
+}
+
+
+void ASCharacter::OnToggleCarryActor()
+{
+	CarriedObjectComp->Pickup();
+}
+
+
+void ASCharacter::SwapToNewWeaponMesh()
+{
+	if (PreviousWeapon)
+	{
+		PreviousWeapon->AttachMeshToPawn(PreviousWeapon->GetStorageSlot());
+	}
+
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->AttachMeshToPawn(EInventorySlot::Hands);
 	}
 }

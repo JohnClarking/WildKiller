@@ -8,7 +8,11 @@
 UCLASS(ABSTRACT)
 class WILDKILLER_API ASUsableActor : public AActor
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
+
+protected:
+
+	ASUsableActor(const FObjectInitializer& ObjectInitializer);
 
 	UPROPERTY(VisibleAnywhere, Category = "Mesh")
 	UStaticMeshComponent* MeshComp;
