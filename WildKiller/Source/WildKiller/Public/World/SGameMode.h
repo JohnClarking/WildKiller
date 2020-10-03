@@ -3,10 +3,7 @@
 #pragma once
 
 #include "GameFramework/GameMode.h"
-#include "SMutator.h"
 #include "SGameMode.generated.h"
-
-class ASPlayerState;
 
 /**
  * 
@@ -16,43 +13,34 @@ class WILDKILLER_API ASGameMode : public AGameMode
 {
 	GENERATED_BODY()
 
-protected:
-
 	ASGameMode(const FObjectInitializer& ObjectInitializer);
-
-	virtual void PreInitializeComponents() override;
 
 	virtual void InitGameState();
 
-	virtual void DefaultTimer();
+	virtual void DefaultTimer() override;
 	
 	virtual void StartMatch();
 
-	virtual void OnNightEnded();
+	/* End the match when all players are dead */
+	void CheckMatchEnd();
 
-	virtual void SpawnDefaultInventory(APawn* PlayerPawn);
-	
-	/**
-	* Make sure pawn properties are back to default
-	* Also a good place to modify them on spawn
-	*/
-	virtual void SetPlayerDefaults(APawn* PlayerPawn) override;
-
-	/* Handle for efficient management of DefaultTimer timer */
-	FTimerHandle TimerHandle_DefaultTimer;
+	/* End the match, with a delay before returning to the main menu */
+	void FinishMatch();
 
 	/* Can we deal damage to players in the same team */
 	UPROPERTY(EditDefaultsOnly, Category = "Rules")
 	bool bAllowFriendlyFireDamage;
 
+	/* Spawn at team player if any are alive */
+	UPROPERTY(EditDefaultsOnly, Category = "Rules")
+	bool bSpawnAtTeamPlayer;
+
 	/* Allow zombie spawns to be disabled (for debugging) */
 	UPROPERTY(EditDefaultsOnly, Category = "Debug")
 	bool bSpawnZombiesAtNight;
 
-	float BotSpawnInterval;
-
 	/* Called once on every new player that enters the gamemode */
-	virtual FString InitNewPlayer(class APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal = TEXT("")) override;
+	virtual FString InitNewPlayer(class APlayerController* NewPlayerController, const TSharedPtr<FUniqueNetId>& UniqueId, const FString& Options, const FString& Portal /* = TEXT("") */);
 
 	/* The teamnumber assigned to Players */
 	int32 PlayerTeamNum;
@@ -73,14 +61,19 @@ protected:
 	/* Handles bot spawning (during nighttime) */
 	void SpawnBotHandler();
 
+	/* Spawn the player next to his living coop buddy instead of a PlayerStart */
+	virtual void RestartPlayer(class AController* NewPlayer) override;
+
 	/************************************************************************/
 	/* Player Spawning                                                      */
 	/************************************************************************/
 
-	/* Don't allow spectating of bots */
-	virtual bool CanSpectate_Implementation(APlayerController* Viewer, APlayerState* ViewTarget) override;
+protected:
 
-	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+	/* Don't allow spectating of bots */
+	virtual bool CanSpectate(APlayerController* Viewer, APlayerState* ViewTarget);
+
+	virtual AActor* ChoosePlayerStart(AController* Player) override;
 
 	/* Always pick a random location */
 	virtual bool ShouldSpawnAtStartSpot(AController* Player) override;
@@ -90,7 +83,7 @@ protected:
 	virtual bool IsSpawnpointPreferred(APlayerStart* SpawnPoint, AController* Controller);
 
 	/** returns default pawn class for given controller */
-	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
+	virtual UClass* GetDefaultPawnClassForController(AController* InController) override;
 
 	/************************************************************************/
 	/* Damage & Killing                                                     */
@@ -125,34 +118,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "DayNight")
 	ADirectionalLight* PrimarySunLight;
 
-	/* The default weapons to spawn with */
-	UPROPERTY(EditDefaultsOnly, Category = "Player")
-	TArray<TSubclassOf<class ASWeapon>> DefaultInventoryClasses;
-
 	/************************************************************************/
-	/* Modding & Mutators                                                   */
+	/* Scoring                                                              */
 	/************************************************************************/
 
-protected:
+	/* Points awarded for surviving a night */
+	UPROPERTY(EditDefaultsOnly, Category = "Scoring")
+	int32 NightSurvivedScore;
 
-	/* Mutators to create when game starts */
- 	UPROPERTY(EditAnywhere, Category = "Mutators")
- 	TArray<TSubclassOf<class ASMutator>> MutatorClasses;
-
-	/* First mutator in the execution chain */
-	ASMutator* BaseMutator;
-
-	void AddMutator(TSubclassOf<ASMutator> MutClass);
-
-	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
-
-	/** From UT Source: Used to modify, remove, and replace Actors. Return false to destroy the passed in Actor. Default implementation queries mutators.
-	* note that certain critical Actors such as PlayerControllers can't be destroyed, but we'll still call this code path to allow mutators
-	* to change properties on them
-	*/
-	UFUNCTION(BlueprintNativeEvent)
-	bool CheckRelevance(AActor* Other);
-
-	/* Note: Functions flagged with BlueprintNativeEvent like above require _Implementation for a C++ implementation */
-	virtual bool CheckRelevance_Implementation(AActor* Other);
 };

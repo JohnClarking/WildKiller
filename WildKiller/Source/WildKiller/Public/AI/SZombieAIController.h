@@ -7,8 +7,6 @@
 #include "SBotWaypoint.h"
 #include "SZombieAIController.generated.h"
 
-class UBehaviorTreeComponent;
-
 /**
  * 
  */
@@ -20,9 +18,7 @@ class WILDKILLER_API ASZombieAIController : public AAIController
 	ASZombieAIController(const class FObjectInitializer& ObjectInitializer);
 
 	/* Called whenever the controller possesses a character bot */
-	virtual void OnPossess(class APawn* InPawn) override;
-
-	virtual void OnUnPossess() override;
+	virtual void Possess(class APawn* InPawn) override;
 
 	UBehaviorTreeComponent* BehaviorComp;
 
@@ -30,6 +26,9 @@ class WILDKILLER_API ASZombieAIController : public AAIController
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI")
 	FName TargetEnemyKeyName;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI")
+	FName TargetLocationKeyName;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI")
 	FName PatrolLocationKeyName;
@@ -45,6 +44,8 @@ public:
 	ASBotWaypoint* GetWaypoint();
 
 	ASBaseCharacter* GetTargetEnemy();
+
+	void SetMoveToTarget(APawn* Pawn);
 
 	void SetWaypoint(ASBotWaypoint* NewWaypoint);
 

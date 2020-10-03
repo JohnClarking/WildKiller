@@ -2,14 +2,14 @@
 
 #include "WildKiller.h"
 #include "SPlayerController.h"
-#include "SGameInstance.h"
+#include "SHUD.h"
 #include "SGameState.h"
 
 
 ASGameState::ASGameState(const class FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	/* 1 SECOND real time is 1*TimeScale MINUTES game time */
+	/* 1 minute real time is 10 minutes game time */
 	TimeScale = 10.0f;
 	bIsNight = false;
 
@@ -18,9 +18,9 @@ ASGameState::ASGameState(const class FObjectInitializer& ObjectInitializer)
 }
 
 
-void ASGameState::SetTimeOfDay(float NewHourOfDay)
+void ASGameState::SetTimeOfDay(float NewTimeOfDay)
 {
-	ElapsedGameMinutes = NewHourOfDay * 60;
+	ElapsedGameMinutes = NewTimeOfDay;
 }
 
 
@@ -94,52 +94,20 @@ int32 ASGameState::GetElapsedMinutesCurrentDay()
 
 
 /* As with Server side functions, NetMulticast functions have a _Implementation body */
-void ASGameState::BroadcastGameMessage_Implementation(EHUDMessage MessageID)
+void ASGameState::BroadcastGameMessage_Implementation(const FString& NewMessage)
 {
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; It++)
 	{
 		ASPlayerController* MyController = Cast<ASPlayerController>(*It);
 		if (MyController && MyController->IsLocalController())
 		{
-			MyController->ClientHUDMessage(MessageID);
+			ASHUD* MyHUD = Cast<ASHUD>(MyController->GetHUD());
+			if (MyHUD)
+			{
+				MyHUD->MessageReceived(NewMessage);
+			}
 		}
 	}
-}
-
-
-void ASGameState::AddPlayerState(APlayerState* PlayerState)
-{
-	Super::AddPlayerState(PlayerState);
-
-	USGameInstance* GI = GetWorld()->GetGameInstance<USGameInstance>();
-	if (ensure(GI))
-	{
-		GI->OnPlayerStateAdded.Broadcast(PlayerState);
-	}
-}
-
-
-void ASGameState::RemovePlayerState(APlayerState* PlayerState)
-{
-	Super::RemovePlayerState(PlayerState);
-
-	USGameInstance* GI = GetWorld()->GetGameInstance<USGameInstance>();
-	if (ensure(GI))
-	{
-		GI->OnPlayerStateRemoved.Broadcast(PlayerState);
-	}
-}
-
-
-int32 ASGameState::GetTotalScore()
-{
-	return TotalScore;
-}
-
-
-void ASGameState::AddScore(int32 Score)
-{
-	TotalScore += Score;
 }
 
 
@@ -149,5 +117,4 @@ void ASGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 
 	DOREPLIFETIME(ASGameState, ElapsedGameMinutes);
 	DOREPLIFETIME(ASGameState, bIsNight);
-	DOREPLIFETIME(ASGameState, TotalScore);
 }

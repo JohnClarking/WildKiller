@@ -15,10 +15,10 @@ ASFlashlight::ASFlashlight(const FObjectInitializer& ObjectInitializer)
 
 	LightConeComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LightConeComp"));
 	LightConeComp->SetCollisionResponseToAllChannels(ECR_Ignore);
-	LightConeComp->SetupAttachment(GetWeaponMesh(), LightAttachPoint);
+	LightConeComp->AttachTo(GetWeaponMesh(), LightAttachPoint, EAttachLocation::SnapToTarget);
 
 	SpotLightComp = CreateDefaultSubobject<USpotLightComponent>(TEXT("SpotLightComp"));
-	SpotLightComp->SetupAttachment(GetWeaponMesh(), LightAttachPoint);
+	SpotLightComp->AttachTo(GetWeaponMesh(), LightAttachPoint, EAttachLocation::SnapToTarget);
 	/*SpotLightComp->SetCastShadows(false);*/
 	SpotLightComp->AddLocalRotation(FRotator(0, -90, 0));
 
@@ -27,9 +27,6 @@ ASFlashlight::ASFlashlight(const FObjectInitializer& ObjectInitializer)
 
 	EmissiveParamName = TEXT("Brightness");
 	MaxEmissiveIntensity = 5.0f;
-
-	/* Doesn't consume "Ammo" */
-	StartAmmo = 0;
 }
 
 

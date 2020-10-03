@@ -35,14 +35,8 @@ ASZombieCharacter::ASZombieCharacter(const class FObjectInitializer& ObjectIniti
 	GetMovementComponent()->NavAgentProps.AgentRadius = 42;
 	GetMovementComponent()->NavAgentProps.AgentHeight = 192;
 
-	AudioLoopComp = CreateDefaultSubobject<UAudioComponent>(TEXT("ZombieLoopedSoundComp"));
-	AudioLoopComp->bAutoActivate = false;
-	AudioLoopComp->bAutoDestroy = false;
-	AudioLoopComp->SetupAttachment(RootComponent);
-
-	Health = 100;
-	MeleeDamage = 24.0f;
-	SprintingSpeedModifier = 3.0f;
+	Health = 75;
+	PunchDamage = 10.0f;
 
 	/* By default we will not let the AI patrol, we can override this value per-instance. */
 	BotType = EBotBehaviorType::Passive;
@@ -63,10 +57,8 @@ void ASZombieCharacter::BeginPlay()
 		PawnSensingComp->OnHearNoise.AddDynamic(this, &ASZombieCharacter::OnHearNoise);
 	}
 
-	BroadcastUpdateAudioLoop(bSensedTarget);
-
 	/* Assign a basic name to identify the bots in the HUD. */
-	ASPlayerState* PS = Cast<ASPlayerState>(GetPlayerState());
+	ASPlayerState* PS = Cast<ASPlayerState>(PlayerState);
 	if (PS)
 	{
 		PS->SetPlayerName("Bot");
@@ -89,9 +81,6 @@ void ASZombieCharacter::Tick(float DeltaSeconds)
 			bSensedTarget = false;
 			/* Reset */
 			AIController->SetTargetEnemy(nullptr);
-
-			/* Stop playing the hunting sound */
-			BroadcastUpdateAudioLoop(false);
 		}
 	}
 }
@@ -99,16 +88,6 @@ void ASZombieCharacter::Tick(float DeltaSeconds)
 
 void ASZombieCharacter::OnSeePlayer(APawn* Pawn)
 {
-	if (!IsAlive())
-	{
-		return;
-	}
-
-	if (!bSensedTarget)
-	{
-		BroadcastUpdateAudioLoop(true);
-	}
-
 	/* Keep track of the time the player was last sensed in order to clear the target */
 	LastSeenTime = GetWorld()->GetTimeSeconds();
 	bSensedTarget = true;
@@ -117,62 +96,35 @@ void ASZombieCharacter::OnSeePlayer(APawn* Pawn)
 	ASBaseCharacter* SensedPawn = Cast<ASBaseCharacter>(Pawn);
 	if (AIController && SensedPawn->IsAlive())
 	{
-		AIController->SetTargetEnemy(SensedPawn);
+		AIController->SetMoveToTarget(SensedPawn);
 	}
 }
 
 
 void ASZombieCharacter::OnHearNoise(APawn* PawnInstigator, const FVector& Location, float Volume)
 {
-	if (!IsAlive())
-	{
-		return;
-	}
-
-	if (!bSensedTarget)
-	{
-		BroadcastUpdateAudioLoop(true);
-	}
-
 	bSensedTarget = true;
 	LastHeardTime = GetWorld()->GetTimeSeconds();
 
 	ASZombieAIController* AIController = Cast<ASZombieAIController>(GetController());
 	if (AIController)
 	{
-		AIController->SetTargetEnemy(PawnInstigator);
+		AIController->SetMoveToTarget(PawnInstigator);
 	}
 }
 
 
-void ASZombieCharacter::PerformMeleeStrike(AActor* HitActor)
+void ASZombieCharacter::PunchHit(AActor* HitActor)
 {
 	if (HitActor && HitActor != this && IsAlive())
 	{
-		ACharacter* OtherPawn = Cast<ACharacter>(HitActor);
-		if (OtherPawn)
-		{
-			ASPlayerState* MyPS = Cast<ASPlayerState>(GetPlayerState());
-			ASPlayerState* OtherPS = Cast<ASPlayerState>(OtherPawn->GetPlayerState());
+		FPointDamageEvent PointDmg;
+		PointDmg.DamageTypeClass = PunchDamageType;
+		//PointDmg.HitInfo = Impact;
+		//PointDmg.ShotDirection = ShootDir;
+		PointDmg.Damage = PunchDamage;
 
-			if (MyPS && OtherPS)
-			{
-				if (MyPS->GetTeamNumber() == OtherPS->GetTeamNumber())
-				{
-					/* Do not attack other zombies. */
-					return;
-				}
-
-				/* Set to prevent a zombie to attack multiple times in a very short time */
-				LastMeleeAttackTime = GetWorld()->GetTimeSeconds();
-
-				FPointDamageEvent DmgEvent;
-				DmgEvent.DamageTypeClass = PunchDamageType;
-				DmgEvent.Damage = MeleeDamage;
-
-				HitActor->TakeDamage(DmgEvent.Damage, DmgEvent, GetController(), this);
-			}
-		}
+		HitActor->TakeDamage(PointDmg.Damage, PointDmg, GetController(), this);
 	}
 }
 
@@ -185,70 +137,5 @@ void ASZombieCharacter::SetBotType(EBotBehaviorType NewType)
 	if (AIController)
 	{
 		AIController->SetBlackboardBotType(NewType);
-	}
-
-	BroadcastUpdateAudioLoop(bSensedTarget);
-}
-
-
-UAudioComponent* ASZombieCharacter::PlayCharacterSound(USoundCue* CueToPlay)
-{
-	if (CueToPlay)
-	{
-		return UGameplayStatics::SpawnSoundAttached(CueToPlay, RootComponent, NAME_None, FVector::ZeroVector, EAttachLocation::SnapToTarget, true);
-	}
-
-	return nullptr;
-}
-
-
-void ASZombieCharacter::PlayHit(float DamageTaken, struct FDamageEvent const& DamageEvent, APawn* PawnInstigator, AActor* DamageCauser, bool bKilled)
-{
-	Super::PlayHit(DamageTaken, DamageEvent, PawnInstigator, DamageCauser, bKilled);
-
-	/* Stop playing the hunting sound */
-	if (AudioLoopComp && bKilled)
-	{
-		AudioLoopComp->Stop();
-	}
-}
-
-
-void ASZombieCharacter::SimulateMeleeStrike_Implementation()
-{
-	PlayAnimMontage(MeleeAnimMontage);
-	PlayCharacterSound(SoundAttackMelee);
-}
-
-
-bool ASZombieCharacter::IsSprinting() const
-{
-	/* Allow a zombie to sprint when he has seen a player */
-	return bSensedTarget && !GetVelocity().IsZero();
-}
-
-
-void ASZombieCharacter::BroadcastUpdateAudioLoop_Implementation(bool bNewSensedTarget)
-{
-	/* Start playing the hunting sound and the "noticed player" sound if the state is about to change */
-	if (bNewSensedTarget && !bSensedTarget)
-	{
-		PlayCharacterSound(SoundPlayerNoticed);
-
-		AudioLoopComp->SetSound(SoundHunting);
-		AudioLoopComp->Play();
-	}
-	else
-	{
-		if (BotType == EBotBehaviorType::Patrolling)
-		{
-			AudioLoopComp->SetSound(SoundWandering);
-			AudioLoopComp->Play();
-		}
-		else
-		{
-			AudioLoopComp->SetSound(SoundIdle);
-			AudioLoopComp->Play();
-		}
 	}
 }

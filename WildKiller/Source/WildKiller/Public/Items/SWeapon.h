@@ -23,8 +23,6 @@ class WILDKILLER_API ASWeapon : public AActor
 {
 	GENERATED_BODY()
 
-	virtual void PostInitializeComponents() override;
-
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	float GetEquipStartedTime() const;
@@ -41,19 +39,15 @@ class WILDKILLER_API ASWeapon : public AActor
 
 	bool bPendingEquip;
 
-	FTimerHandle TimerHandle_HandleFiring;
+	FTimerHandle HandleFiringTimerHandle;
 
 	FTimerHandle EquipFinishedTimerHandle;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-	float ShotsPerMinute;
 
 protected:
 
 	ASWeapon(const FObjectInitializer& ObjectInitializer);
 
 	/* The character socket to store this item at. */
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 	EInventorySlot StorageSlot;
 
 	/** pawn owner */
@@ -79,7 +73,7 @@ protected:
 public:
 
 	/** get weapon mesh (needs pawn owner to determine variant) */
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	UFUNCTION(BlueprintCallable, Category = "Game|Weapon")
 	USkeletalMeshComponent* GetWeaponMesh() const;
 
 	virtual void OnUnEquip();
@@ -90,7 +84,7 @@ public:
 	void SetOwningPawn(ASCharacter* NewOwner);
 
 	/* Get pawn owner */
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	UFUNCTION(BlueprintCallable, Category = "Game|Weapon")
 	class ASCharacter* GetPawnOwner() const;
 
 	virtual void OnEnterInventory(ASCharacter* NewOwner);
@@ -103,7 +97,7 @@ public:
 	}
 
 	/* The class to spawn in the level when dropped */
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+	UPROPERTY(EditDefaultsOnly, Category = "Game|Weapon")
 	TSubclassOf<class ASWeaponPickup> WeaponPickupClass;
 
 	/************************************************************************/
@@ -133,6 +127,9 @@ protected:
 
 	/* With PURE_VIRTUAL we skip implementing the function in SWeapon.cpp and can do this in SWeaponInstant.cpp / SFlashlight.cpp instead */
 	virtual void FireWeapon() PURE_VIRTUAL(ASWeapon::FireWeapon, );
+
+	UPROPERTY(EditDefaultsOnly)
+	float TimeBetweenShots;
 
 private:
 
@@ -174,9 +171,6 @@ private:
 	bool bRefiring;
 
 	float LastFireTime;
-
-	/* Time between shots for repeating fire */
-	float TimeBetweenShots;
 
 	/************************************************************************/
 	/* Simulation & FX                                                      */
@@ -228,106 +222,4 @@ protected:
 	float PlayWeaponAnimation(UAnimMontage* Animation, float InPlayRate = 1.f, FName StartSectionName = NAME_None);
 
 	void StopWeaponAnimation(UAnimMontage* Animation);
-
-	/************************************************************************/
-	/* Ammo & Reloading                                                     */
-	/************************************************************************/
-
-private:
-
-	UPROPERTY(EditDefaultsOnly, Category = "Sounds")
-	USoundCue* OutOfAmmoSound;
-
-	FTimerHandle TimerHandle_ReloadWeapon;
-
-	FTimerHandle TimerHandle_StopReload;
-
-protected:
-
-	/* Time to assign on reload when no animation is found */
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
-	float NoAnimReloadDuration;
-
-	/* Time to assign on equip when no animation is found */
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
-	float NoEquipAnimDuration;
-
-	UPROPERTY(Transient, ReplicatedUsing = OnRep_Reload)
-	bool bPendingReload;
-
-	void UseAmmo();
-
-	UPROPERTY(Transient, Replicated)
-	int32 CurrentAmmo;
-
-	UPROPERTY(Transient, Replicated)
-	int32 CurrentAmmoInClip;
-
-	/* Weapon ammo on spawn */
-	UPROPERTY(EditDefaultsOnly)
-	int32 StartAmmo;
-
-	UPROPERTY(EditDefaultsOnly)
-	int32 MaxAmmo;
-
-	UPROPERTY(EditDefaultsOnly)
-	int32 MaxAmmoPerClip;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Sounds")
-	USoundCue* ReloadSound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
-	UAnimMontage* ReloadAnim;
-
-	virtual void ReloadWeapon();
-
-	/* Trigger reload from server */
-	UFUNCTION(Reliable, Client)
-	void ClientStartReload();
-
-	void ClientStartReload_Implementation();
-
-	/* Is weapon and character currently capable of starting a reload */
-	bool CanReload();
-
-	UFUNCTION()
-	void OnRep_Reload();
-
-	UFUNCTION(reliable, server, WithValidation)
-	void ServerStartReload();
-
-	void ServerStartReload_Implementation();
-
-	bool ServerStartReload_Validate();
-
-	UFUNCTION(reliable, server, WithValidation)
-	void ServerStopReload();
-
-	void ServerStopReload_Implementation();
-
-	bool ServerStopReload_Validate();
-
-public:
-
-	virtual void StartReload(bool bFromReplication = false);
-
-	virtual void StopSimulateReload();
-
-	/* Give ammo to weapon and return the amount that was not 'consumed' beyond the max count */
-	int32 GiveAmmo(int32 AddAmount);
-
-	/* Set a new total amount of ammo of weapon */
-	void SetAmmoCount(int32 NewTotalAmount);
-
-	UFUNCTION(BlueprintCallable, Category = "Ammo")
-	int32 GetCurrentAmmo() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Ammo")
-	int32 GetCurrentAmmoInClip() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Ammo")
-	int32 GetMaxAmmoPerClip() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Ammo")
-	int32 GetMaxAmmo() const;
 };

@@ -3,17 +3,17 @@
 #include "WildKiller.h"
 #include "SCharacter.h"
 #include "SUsableActor.h"
+#include "SHUD.h"
 #include "SWeapon.h"
 #include "SWeaponPickup.h"
 #include "SCharacterMovementComponent.h"
 #include "SCarryObjectComponent.h"
 #include "SBaseCharacter.h"
-#include "SPlayerController.h"
-#include "Runtime/Engine/Classes/Animation/AnimInstance.h"
+
 
 // Sets default values
 ASCharacter::ASCharacter(const class FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<USCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -35,23 +35,23 @@ ASCharacter::ASCharacter(const class FObjectInitializer& ObjectInitializer)
 	CameraBoomComp->SocketOffset = FVector(0, 35, 0);
 	CameraBoomComp->TargetOffset = FVector(0, 0, 55);
 	CameraBoomComp->bUsePawnControlRotation = true;
-	CameraBoomComp->SetupAttachment(GetRootComponent());
+	CameraBoomComp->AttachParent = GetRootComponent();
 
 	CameraComp = ObjectInitializer.CreateDefaultSubobject<UCameraComponent>(this, TEXT("Camera"));
-	CameraComp->SetupAttachment(CameraBoomComp);
+	CameraComp->AttachParent = CameraBoomComp;
 
 	CarriedObjectComp = ObjectInitializer.CreateDefaultSubobject<USCarryObjectComponent>(this, TEXT("CarriedObjectComp"));
-	CarriedObjectComp->SetupAttachment(GetRootComponent());
+	CarriedObjectComp->AttachParent = GetRootComponent();
 
 	MaxUseDistance = 500;
-	DropWeaponMaxDistance = 100;
+	DropItemDistance = 100;
 	bHasNewFocus = true;
 	TargetingSpeedModifier = 0.5f;
 	SprintingSpeedModifier = 2.5f;
 
 	Health = 100;
 
-	IncrementHungerAmount = 5.0f;
+	IncrementHungerAmount = 1.0f;
 	IncrementHungerInterval = 5.0f;
 	CriticalHungerThreshold = 90;
 	HungerDamagePerInterval = 1.0f;
@@ -74,6 +74,8 @@ void ASCharacter::BeginPlay()
 		// Set a timer to increment hunger every interval
 		FTimerHandle Handle;
 		GetWorldTimerManager().SetTimer(Handle, this, &ASCharacter::IncrementHunger, IncrementHungerInterval, true);
+
+		SpawnDefaultInventory();
 	}
 }
 
@@ -125,44 +127,43 @@ void ASCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 
 // Called to bind functionality to input
-void ASCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
+void ASCharacter::SetupPlayerInputComponent(class UInputComponent* InputComponent)
 {
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
+	Super::SetupPlayerInputComponent(InputComponent);
 
 	// Movement
-	PlayerInputComponent->BindAxis("MoveForward", this, &ASCharacter::MoveForward);
-	PlayerInputComponent->BindAxis("MoveRight", this, &ASCharacter::MoveRight);
-	PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
-	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
+	InputComponent->BindAxis("MoveForward", this, &ASCharacter::MoveForward);
+	InputComponent->BindAxis("MoveRight", this, &ASCharacter::MoveRight);
+	InputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
+	InputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
 
-	PlayerInputComponent->BindAction("SprintHold", IE_Pressed, this, &ASCharacter::OnStartSprinting);
-	PlayerInputComponent->BindAction("SprintHold", IE_Released, this, &ASCharacter::OnStopSprinting);
+	InputComponent->BindAction("SprintHold", IE_Pressed, this, &ASCharacter::OnStartSprinting);
+	InputComponent->BindAction("SprintHold", IE_Released, this, &ASCharacter::OnStopSprinting);
 
-	PlayerInputComponent->BindAction("CrouchToggle", IE_Released, this, &ASCharacter::OnCrouchToggle);
+	InputComponent->BindAction("CrouchToggle", IE_Released, this, &ASCharacter::OnCrouchToggle);
 
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ASCharacter::OnJump);
+	InputComponent->BindAction("Jump", IE_Pressed, this, &ASCharacter::OnStartJump);
+	InputComponent->BindAction("Jump", IE_Released, this, &ASCharacter::OnStopJump);
 
 	// Interaction
-	PlayerInputComponent->BindAction("Use", IE_Pressed, this, &ASCharacter::Use);
-	PlayerInputComponent->BindAction("DropWeapon", IE_Pressed, this, &ASCharacter::DropWeapon);
+	InputComponent->BindAction("Use", IE_Pressed, this, &ASCharacter::Use);
+	InputComponent->BindAction("DropWeapon", IE_Pressed, this, &ASCharacter::DropWeapon);
 
 	// Weapons
-	PlayerInputComponent->BindAction("Targeting", IE_Pressed, this, &ASCharacter::OnStartTargeting);
-	PlayerInputComponent->BindAction("Targeting", IE_Released, this, &ASCharacter::OnEndTargeting);
+	InputComponent->BindAction("Targeting", IE_Pressed, this, &ASCharacter::OnStartTargeting);
+	InputComponent->BindAction("Targeting", IE_Released, this, &ASCharacter::OnEndTargeting);
 
-	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ASCharacter::OnStartFire);
-	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ASCharacter::OnStopFire);
+	InputComponent->BindAction("Fire", IE_Pressed, this, &ASCharacter::OnStartFire);
+	InputComponent->BindAction("Fire", IE_Released, this, &ASCharacter::OnStopFire);
 
-	PlayerInputComponent->BindAction("Reload", IE_Pressed, this, &ASCharacter::OnReload);
+	InputComponent->BindAction("NextWeapon", IE_Pressed, this, &ASCharacter::OnNextWeapon);
+	InputComponent->BindAction("PrevWeapon", IE_Pressed, this, &ASCharacter::OnPrevWeapon);
 
-	PlayerInputComponent->BindAction("NextWeapon", IE_Pressed, this, &ASCharacter::OnNextWeapon);
-	PlayerInputComponent->BindAction("PrevWeapon", IE_Pressed, this, &ASCharacter::OnPrevWeapon);
-
-	PlayerInputComponent->BindAction("EquipPrimaryWeapon", IE_Pressed, this, &ASCharacter::OnEquipPrimaryWeapon);
-	PlayerInputComponent->BindAction("EquipSecondaryWeapon", IE_Pressed, this, &ASCharacter::OnEquipSecondaryWeapon);
+	InputComponent->BindAction("EquipPrimaryWeapon", IE_Pressed, this, &ASCharacter::OnEquipPrimaryWeapon);
+	InputComponent->BindAction("EquipSecondaryWeapon", IE_Pressed, this, &ASCharacter::OnEquipSecondaryWeapon);
 
 	/* Input binding for the carry object component */
-	PlayerInputComponent->BindAction("PickupObject", IE_Pressed, this, &ASCharacter::OnToggleCarryActor);
+	InputComponent->BindAction("PickupObject", IE_Pressed, this, &ASCharacter::OnToggleCarryActor);
 }
 
 
@@ -208,13 +209,14 @@ ASUsableActor* ASCharacter::GetUsableInView()
 	const FVector TraceEnd = TraceStart + (Direction * MaxUseDistance);
 
 	FCollisionQueryParams TraceParams(TEXT("TraceUsableActor"), true, this);
+	TraceParams.bTraceAsyncScene = true;
 	TraceParams.bReturnPhysicalMaterial = false;
 
 	/* Not tracing complex uses the rough collision instead making tiny objects easier to select. */
 	TraceParams.bTraceComplex = false;
 
 	FHitResult Hit(ForceInit);
-	GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, TraceParams);
+	GetWorld()->LineTraceSingle(Hit, TraceStart, TraceEnd, ECC_Visibility, TraceParams);
 
 	//DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Red, false, 1.0f);
 
@@ -269,9 +271,53 @@ void ASCharacter::OnEndTargeting()
 }
 
 
-void ASCharacter::OnJump()
+void ASCharacter::SetTargeting(bool NewTargeting)
 {
+	bIsTargeting = NewTargeting;
+
+	if (Role < ROLE_Authority)
+	{
+		ServerSetTargeting(NewTargeting);
+	}
+}
+
+
+void ASCharacter::ServerSetTargeting_Implementation(bool NewTargeting)
+{
+	SetTargeting(NewTargeting);
+}
+
+
+bool ASCharacter::ServerSetTargeting_Validate(bool NewTargeting)
+{
+	return true;
+}
+
+
+
+bool ASCharacter::IsTargeting() const
+{
+	return bIsTargeting;
+}
+
+
+float ASCharacter::GetTargetingSpeedModifier() const
+{
+	return TargetingSpeedModifier;
+}
+
+
+void ASCharacter::OnStartJump()
+{
+	bPressedJump = true;
+
 	SetIsJumping(true);
+}
+
+
+void ASCharacter::OnStopJump()
+{
+	bPressedJump = false;
 }
 
 
@@ -288,15 +334,9 @@ void ASCharacter::SetIsJumping(bool NewJumping)
 	{
 		UnCrouch();
 	}
-	else if (NewJumping != bIsJumping)
+	else
 	{
 		bIsJumping = NewJumping;
-
-		if (bIsJumping)
-		{
-			/* Perform the built-in Jump on the character */
-			Jump();
-		}
 	}
 
 	if (Role < ROLE_Authority)
@@ -306,29 +346,36 @@ void ASCharacter::SetIsJumping(bool NewJumping)
 }
 
 
-void ASCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
+void ASCharacter::OnLanded(const FHitResult& Hit)
 {
-	Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
+	Super::OnLanded(Hit);
 
-	/* Check if we are no longer falling/jumping */
-	if (PrevMovementMode == EMovementMode::MOVE_Falling && 
-		GetCharacterMovement()->MovementMode != EMovementMode::MOVE_Falling)
-	{
-		SetIsJumping(false);
-	}
+	SetIsJumping(false);
 }
-
-
 
 void ASCharacter::ServerSetIsJumping_Implementation(bool NewJumping)
 {
 	SetIsJumping(NewJumping);
 }
 
-
 bool ASCharacter::ServerSetIsJumping_Validate(bool NewJumping)
 {
 	return true;
+}
+
+void ASCharacter::SetSprinting(bool NewSprinting)
+{
+	bWantsToRun = NewSprinting;
+
+	if (bIsCrouched)
+		UnCrouch();
+
+	// TODO: Stop weapon fire
+
+	if (Role < ROLE_Authority)
+	{
+		ServerSetSprinting(NewSprinting);
+	}
 }
 
 
@@ -349,14 +396,46 @@ void ASCharacter::OnStopSprinting()
 }
 
 
+void ASCharacter::ServerSetSprinting_Implementation(bool NewSprinting)
+{
+	SetSprinting(NewSprinting);
+}
+
+
+bool ASCharacter::ServerSetSprinting_Validate(bool NewSprinting)
+{
+	return true;
+}
+
+
+bool ASCharacter::IsSprinting() const
+{
+	if (!GetCharacterMovement())
+		return false;
+
+	return bWantsToRun && !IsTargeting() && !GetVelocity().IsZero() 
+		// Don't allow sprint while strafing sideways or standing still (1.0 is straight forward, -1.0 is backward while near 0 is sideways or standing still)
+		&& (FVector::DotProduct(GetVelocity().GetSafeNormal2D(), GetActorRotation().Vector()) > 0.8); // Changing this value to 0.1 allows for diagonal sprinting. (holding W+A or W+D keys)
+}
+
+
+float ASCharacter::GetSprintingSpeedModifier() const
+{
+	return SprintingSpeedModifier;
+}
+
+
 void ASCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	// Value is already updated locally, skip in replication step
+	DOREPLIFETIME_CONDITION(ASCharacter, bWantsToRun, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(ASCharacter, bIsTargeting, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ASCharacter, bIsJumping, COND_SkipOwner);
 
 	// Replicate to every client, no special condition required
+	DOREPLIFETIME(ASCharacter, Health);
 	DOREPLIFETIME(ASCharacter, Hunger);
 
 	DOREPLIFETIME(ASCharacter, LastTakeHitInfo);
@@ -369,11 +448,6 @@ void ASCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 
 void ASCharacter::OnCrouchToggle()
 {
-	if (IsSprinting())
-	{
-		SetSprinting(false);
-	}
-
 	// If we are crouching then CanCrouch will return false. If we cannot crouch then calling Crouch() wont do anything
 	if (CanCrouch())
 	{
@@ -383,6 +457,16 @@ void ASCharacter::OnCrouchToggle()
 	{
 		UnCrouch();
 	}
+}
+
+
+FRotator ASCharacter::GetAimOffsets() const
+{
+	const FVector AimDirWS = GetBaseAimRotation().Vector();
+	const FVector AimDirLS = ActorToWorld().InverseTransformVectorNoScale(AimDirWS);
+	const FRotator AimRotLS = AimDirLS.Rotation();
+
+	return AimRotLS;
 }
 
 
@@ -398,18 +482,22 @@ float ASCharacter::GetMaxHunger() const
 }
 
 
-void ASCharacter::RestoreCondition(float HealthRestored, float HungerRestored)
+void ASCharacter::ConsumeFood(float AmountRestored)
 {
 	// Reduce Hunger, ensure we do not go outside of our bounds
-	Hunger = FMath::Clamp(Hunger - HungerRestored, 0.0f, GetMaxHunger());
+	Hunger = FMath::Clamp(Hunger - AmountRestored, 0.0f, GetMaxHunger());
 
 	// Restore Hitpoints
-	Health = FMath::Clamp(Health + HealthRestored, 0.0f, GetMaxHealth());
+	Health = FMath::Clamp(Health + AmountRestored, 0.0f, GetMaxHealth());
 
-	ASPlayerController* PC = Cast<ASPlayerController>(Controller);
+	APlayerController* PC = Cast<APlayerController>(Controller);
 	if (PC)
 	{
-		PC->ClientHUDMessage(EHUDMessage::Character_EnergyRestored);
+		ASHUD* MyHUD = Cast<ASHUD>(PC->GetHUD());
+		if (MyHUD)
+		{
+			MyHUD->MessageReceived("Food consumed!");
+		}
 	}
 }
 
@@ -450,12 +538,6 @@ bool ASCharacter::CanFire() const
 }
 
 
-bool ASCharacter::CanReload() const
-{
-	return IsAlive();
-}
-
-
 bool ASCharacter::IsFiring() const
 {
 	return CurrentWeapon && CurrentWeapon->GetCurrentState() == EWeaponState::Firing;
@@ -480,6 +562,27 @@ FName ASCharacter::GetInventoryAttachPoint(EInventorySlot Slot) const
 }
 
 
+void ASCharacter::SpawnDefaultInventory()
+{
+	if (Role < ROLE_Authority)
+	{	
+		return;
+	}
+
+	for (int32 i = 0; i < DefaultInventoryClasses.Num(); i++)
+	{
+		if (DefaultInventoryClasses[i])
+		{
+			FActorSpawnParameters SpawnInfo;
+			SpawnInfo.bNoCollisionFail = true;
+			ASWeapon* NewWeapon = GetWorld()->SpawnActor<ASWeapon>(DefaultInventoryClasses[i], SpawnInfo);
+
+			AddWeapon(NewWeapon);
+		}
+	}
+}
+
+
 void ASCharacter::DestroyInventory()
 {
 	if (Role < ROLE_Authority)
@@ -492,7 +595,8 @@ void ASCharacter::DestroyInventory()
 		ASWeapon* Weapon = Inventory[i];
 		if (Weapon)
 		{
-			RemoveWeapon(Weapon, true);
+			RemoveWeapon(Weapon);
+			Weapon->Destroy();
 		}
 	}
 }
@@ -538,12 +642,6 @@ void ASCharacter::SetCurrentWeapon(class ASWeapon* NewWeapon, class ASWeapon* La
 void ASCharacter::OnRep_CurrentWeapon(ASWeapon* LastWeapon)
 {
 	SetCurrentWeapon(CurrentWeapon, LastWeapon);
-}
-
-
-ASWeapon* ASCharacter::GetCurrentWeapon() const
-{
-	return CurrentWeapon;
 }
 
 
@@ -595,7 +693,7 @@ void ASCharacter::AddWeapon(class ASWeapon* Weapon)
 }
 
 
-void ASCharacter::RemoveWeapon(class ASWeapon* Weapon, bool bDestroy)
+void ASCharacter::RemoveWeapon(class ASWeapon* Weapon)
 {
 	if (Weapon && Role == ROLE_Authority)
 	{
@@ -609,20 +707,11 @@ void ASCharacter::RemoveWeapon(class ASWeapon* Weapon, bool bDestroy)
 
 		/* Replace weapon if we removed our current weapon */
 		if (bIsCurrent && Inventory.Num() > 0)
-		{
 			SetCurrentWeapon(Inventory[0]);
-		}			
 
 		/* Clear reference to weapon if we have no items left in inventory */
 		if (Inventory.Num() == 0)
-		{
 			SetCurrentWeapon(nullptr);
-		}
-
-		if (bDestroy)
-		{
-			Weapon->Destroy();
-		}
 	}
 }
 
@@ -633,15 +722,6 @@ void ASCharacter::PawnClientRestart()
 
 	/* Equip the weapon on the client side. */
 	SetCurrentWeapon(CurrentWeapon);
-}
-
-
-void ASCharacter::OnReload()
-{
-	if (CurrentWeapon)
-	{
-		CurrentWeapon->StartReload();
-	}
 }
 
 
@@ -700,7 +780,7 @@ void ASCharacter::OnNextWeapon()
 {
 	if (CarriedObjectComp->GetIsCarryingActor())
 	{
-		CarriedObjectComp->Rotate(0.0f, 1.0f);
+		CarriedObjectComp->Rotate(1.0f);
 		return;
 	}
 
@@ -717,7 +797,7 @@ void ASCharacter::OnPrevWeapon()
 {
 	if (CarriedObjectComp->GetIsCarryingActor())
 	{
-		CarriedObjectComp->Rotate(0.0f, -1.0f);
+		CarriedObjectComp->Rotate(-1.0f);
 		return;
 	}
 
@@ -744,43 +824,15 @@ void ASCharacter::DropWeapon()
 		FRotator CamRot;
 
 		if (Controller == nullptr)
-		{
 			return;
-		}		
-		
-		/* Find a location to drop the item, slightly in front of the player.
-			Perform ray trace to check for blocking objects or walls and to make sure we don't drop any item through the level mesh */
+
+		/* Find a location to drop the item, slightly in front of the player. */
 		Controller->GetPlayerViewPoint(CamLoc, CamRot);
-		FVector SpawnLocation;
-		FRotator SpawnRotation = CamRot;
-
 		const FVector Direction = CamRot.Vector();
-		const FVector TraceStart = GetActorLocation();
-		const FVector TraceEnd = GetActorLocation() + (Direction * DropWeaponMaxDistance);
+		const FVector SpawnLocation = GetActorLocation() + (Direction * DropItemDistance);
 
-		/* Setup the trace params, we are only interested in finding a valid drop position */
-		FCollisionQueryParams TraceParams;
-		TraceParams.bTraceComplex = false;
-		TraceParams.bReturnPhysicalMaterial = false;
-		TraceParams.AddIgnoredActor(this);
-
-		FHitResult Hit;
-		GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_WorldDynamic, TraceParams);
-
-		/* Find farthest valid spawn location */
-		if (Hit.bBlockingHit)
-		{
-			/* Slightly move away from impacted object */
-			SpawnLocation = Hit.ImpactPoint + (Hit.ImpactNormal * 20);
-		}
-		else
-		{
-			SpawnLocation = TraceEnd;
-		}
-
-		/* Spawn the "dropped" weapon */
 		FActorSpawnParameters SpawnInfo;
-		SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		SpawnInfo.bNoCollisionFail = true;
 		ASWeaponPickup* NewWeaponPickup = GetWorld()->SpawnActor<ASWeaponPickup>(CurrentWeapon->WeaponPickupClass, SpawnLocation, FRotator::ZeroRotator, SpawnInfo);
 
 		if (NewWeaponPickup)
@@ -790,11 +842,11 @@ void ASCharacter::DropWeapon()
 			if (MeshComp)
 			{
 				MeshComp->SetSimulatePhysics(true);
-				MeshComp->AddTorqueInRadians(FVector(1, 1, 1) * 4000000);
+				MeshComp->AddTorque(FVector(1, 1, 1) * 4000000);
 			}
 		}
 
-		RemoveWeapon(CurrentWeapon, true);
+		RemoveWeapon(CurrentWeapon);
 	}
 }
 
@@ -813,12 +865,6 @@ bool ASCharacter::ServerDropWeapon_Validate()
 
 void ASCharacter::OnEquipPrimaryWeapon()
 {
-	if (CarriedObjectComp->GetIsCarryingActor())
-	{
-		CarriedObjectComp->Rotate(1.0f, 0.0f);
-		return;
-	}
-
 	if (Inventory.Num() >= 1)
 	{
 		/* Find first weapon that uses primary slot. */
@@ -836,12 +882,6 @@ void ASCharacter::OnEquipPrimaryWeapon()
 
 void ASCharacter::OnEquipSecondaryWeapon()
 {
-	if (CarriedObjectComp->GetIsCarryingActor())
-	{
-		CarriedObjectComp->Rotate(-1.0f, 0.0f);
-		return;
-	}
-
 	if (Inventory.Num() >= 2)
 	{
 		/* Find first weapon that uses secondary slot. */
@@ -951,15 +991,4 @@ void ASCharacter::SwapToNewWeaponMesh()
 	{
 		CurrentWeapon->AttachMeshToPawn(EInventorySlot::Hands);
 	}
-}
-
-
-void ASCharacter::SetSprinting(bool NewSprinting)
-{
-	if (bWantsToRun)
-	{
-		StopWeaponFire();
-	}
-
-	Super::SetSprinting(NewSprinting);
 }

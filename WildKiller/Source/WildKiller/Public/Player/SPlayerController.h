@@ -6,26 +6,6 @@
 #include "SHUD.h"
 #include "SPlayerController.generated.h"
 
-UENUM()
-enum class EHUDMessage : uint8
-{
-	/* Weapons */
-	Weapon_SlotTaken,
-
-	/* Character */
-	Character_EnergyRestored,
-
-	/* Gamemode */
-	Game_SurviveStart,
-	Game_SurviveEnded,
-
-	/* No category specified */
-	None,
-};
-
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FChatMessageReceived, class APlayerState*, Sender, const FString&, Message);
-
 /**
  * 
  */
@@ -37,13 +17,12 @@ class WILDKILLER_API ASPlayerController : public APlayerController
 	ASPlayerController(const FObjectInitializer& ObjectInitializer);
 
 	/* Flag to respawn or start spectating upon death */
-	UPROPERTY(EditDefaultsOnly, Category = "Spawning")
 	bool bRespawnImmediately;
 	
 	/* Respawn or start spectating after dying */
 	virtual void UnFreeze() override;
 
-	UFUNCTION(Reliable, Server, WithValidation)
+	UFUNCTION(reliable, server, WithValidation)
 	void ServerSuicide();
 
 	void ServerSuicide_Implementation();
@@ -52,18 +31,10 @@ class WILDKILLER_API ASPlayerController : public APlayerController
 
 public:
 
-	UFUNCTION(Reliable, Client)
+	UFUNCTION(reliable, client)
 	void ClientHUDStateChanged(EHUDState NewState);
 
 	void ClientHUDStateChanged_Implementation(EHUDState NewState);
-
-	/* Enum is remapped to localized text before sending it to the HUD */
-	UFUNCTION(Reliable, Client)
-	void ClientHUDMessage(EHUDMessage MessageID);
-
-	void ClientHUDMessage_Implementation(EHUDMessage MessageID);
-
-	FText GetText(EHUDMessage MsgID);
 
 	/* Kill the current pawn */
 	UFUNCTION(exec)
@@ -71,18 +42,4 @@ public:
 
 	/* Start spectating. Should be called only on server */
 	void StartSpectating();
-
-public:
-
-	// -- CHAT -- //
-
-	UFUNCTION(BlueprintCallable, Server, Reliable, WithValidation)
-	void ServerSendChatMessage(class APlayerState* Sender, const FString& Message);
-
-	UFUNCTION(Client, Reliable)
-	void ClientReceiveChatMessage(class APlayerState* Sender, const FString& Message);
-
-	UPROPERTY(BlueprintAssignable)
-	FChatMessageReceived OnChatMessageReceived;
-
 };

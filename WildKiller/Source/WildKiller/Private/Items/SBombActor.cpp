@@ -10,24 +10,24 @@ ASBombActor::ASBombActor(const class FObjectInitializer& ObjectInitializer)
 	FuzePCS = ObjectInitializer.CreateDefaultSubobject<UParticleSystemComponent>(this, TEXT("Fuze"));
 	FuzePCS->bAutoActivate = false;
 	FuzePCS->bAutoDestroy = false;
-	FuzePCS->SetupAttachment(RootComponent);
+	FuzePCS->AttachParent = RootComponent;
 
 	ExplosionPCS = ObjectInitializer.CreateDefaultSubobject<UParticleSystemComponent>(this, TEXT("Explosion"));
 	ExplosionPCS->bAutoActivate = false;
 	ExplosionPCS->bAutoDestroy = false;
-	ExplosionPCS->SetupAttachment(RootComponent);
+	ExplosionPCS->AttachParent = RootComponent;
 
 	AudioComp = ObjectInitializer.CreateDefaultSubobject<UAudioComponent>(this, TEXT("AudioComp"));
 	AudioComp->bAutoActivate = false;
 	AudioComp->bAutoDestroy = false;
-	AudioComp->SetupAttachment(RootComponent);
+	AudioComp->AttachParent = RootComponent;
 
 	// Let the bomb be thrown and roll around
 	MeshComp->SetSimulatePhysics(true);
 
 	MaxFuzeTime = 3.0f;
-	ExplosionDamage = 200;
-	ExplosionRadius = 600;
+	ExplosionDamage = 100;
+	ExplosionRadius = 1024;
 
 	SetReplicates(true);
 	bReplicateMovement = true;
@@ -60,12 +60,12 @@ void ASBombActor::OnUsed(APawn* InstigatorPawn)
 	SimulateFuzeFX();
 
 	// Activate the fuze to explode the bomb after several seconds
-	GetWorldTimerManager().SetTimer(FuzeTimerHandle, this, &ASBombActor::Explode, MaxFuzeTime, false);
+	GetWorldTimerManager().SetTimer(FuzeTimerHandle, this, &ASBombActor::OnExplode, MaxFuzeTime, false);
 
 }
 
 
-void ASBombActor::Explode()
+void ASBombActor::OnExplode()
 {
 	if (bExploded)
 	{
@@ -79,11 +79,6 @@ void ASBombActor::Explode()
 	// Apply damage to player, enemies and environmental objects
 	TArray<AActor*> IgnoreActors;
 	UGameplayStatics::ApplyRadialDamage(this, ExplosionDamage, GetActorLocation(), ExplosionRadius, DamageType, IgnoreActors, this, nullptr);
-
-	//DrawDebugSphere(GetWorld(), GetActorLocation(), ExplosionRadius, 32, FColor::Red, false, 1.5f);
-
-	/* Allow clients to show FX before deleting */
-	SetLifeSpan(2.0f);
 }
 
 
@@ -110,7 +105,7 @@ void ASBombActor::SimulateExplosion_Implementation()
 
 	MeshComp->SetVisibility(false, false);
 
-	// Activate all explosion effects
+	// Active all explosion effects
 	if (ExplosionSound)
 	{
 		AudioComp->SetSound(ExplosionSound);
@@ -121,11 +116,4 @@ void ASBombActor::SimulateExplosion_Implementation()
 		ExplosionPCS->SetTemplate(ExplosionFX);
 		ExplosionPCS->ActivateSystem();
 	}
-}
-
-float ASBombActor::TakeDamage(float Damage, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, class AActor* DamageCauser)
-{
-	Explode();
-
-	return Super::TakeDamage(Damage, DamageEvent, EventInstigator, DamageCauser);
 }

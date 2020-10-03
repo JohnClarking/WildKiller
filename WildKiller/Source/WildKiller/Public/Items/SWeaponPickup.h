@@ -15,11 +15,13 @@ class WILDKILLER_API ASWeaponPickup : public ASPickupActor
 
 	ASWeaponPickup(const FObjectInitializer& ObjectInitializer);
 
-public:
+protected:
 
 	/* Class to add to inventory when picked up */
-	UPROPERTY(EditDefaultsOnly, Category = "WeaponClass")
+	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<ASWeapon> WeaponClass;
+
+public:
 
 	virtual void OnUsed(APawn* InstigatorPawn) override;
 };

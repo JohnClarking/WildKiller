@@ -38,23 +38,13 @@ void ASImpactEffect::PostInitializeComponents()
 
 	if (DecalMaterial)
 	{
-		FVector ImpactNormal = SurfaceHit.ImpactNormal;
-		ImpactNormal.Normalize();
-		/* Inverse to point towards the wall. Invert to get the correct orientation of the decal (pointing into the surface instead of away, messing with the normals, and lighting) */
-		ImpactNormal = -ImpactNormal;
-
-		FRotator RandomDecalRotation = ImpactNormal.ToOrientationRotator();
+		FRotator RandomDecalRotation = SurfaceHit.ImpactNormal.Rotation();
 		RandomDecalRotation.Roll = FMath::FRandRange(-180.0f, 180.0f);
 
-		UDecalComponent* DecalComp = UGameplayStatics::SpawnDecalAttached(DecalMaterial, FVector(DecalSize, DecalSize, DecalSize),
+		UGameplayStatics::SpawnDecalAttached(DecalMaterial, FVector(DecalSize, DecalSize, 1.0f),
 			SurfaceHit.Component.Get(), SurfaceHit.BoneName,
 			SurfaceHit.ImpactPoint, RandomDecalRotation, EAttachLocation::KeepWorldPosition,
 			DecalLifeSpan);
-
-		if (DecalComp)
-		{
-			DecalComp->SetFadeOut(DecalLifeSpan, 0.5f, false);
-		}
 	}
 }
 
@@ -67,9 +57,7 @@ UParticleSystem* ASImpactEffect::GetImpactFX(EPhysicalSurface SurfaceType) const
 		return DefaultFX;
 	case SURFACE_FLESH:
 		return PlayerFleshFX;
-	case SURFACE_ZOMBIEBODY:
-	case SURFACE_ZOMBIEHEAD:
-	case SURFACE_ZOMBIELIMB:
+	case SURFACE_ZOMBIE:
 		return ZombieFleshFX;
 	default:
 		return nullptr;
@@ -85,9 +73,7 @@ USoundCue* ASImpactEffect::GetImpactSound(EPhysicalSurface SurfaceType) const
 		return DefaultSound;
 	case SURFACE_FLESH:
 		return PlayerFleshSound;
-	case SURFACE_ZOMBIEBODY:
-	case SURFACE_ZOMBIEHEAD:
-	case SURFACE_ZOMBIELIMB:
+	case SURFACE_ZOMBIE:
 		return ZombieFleshSound;
 	default:
 		return nullptr;

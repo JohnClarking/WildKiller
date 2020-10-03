@@ -4,7 +4,6 @@
 #include "SWeaponInstant.h"
 #include "SImpactEffect.h"
 #include "SPlayerController.h"
-#include "SDamageType.h"
 
 
 ASWeaponInstant::ASWeaponInstant(const class FObjectInitializer& PCIP)
@@ -17,6 +16,7 @@ ASWeaponInstant::ASWeaponInstant(const class FObjectInitializer& PCIP)
 	ClientSideHitLeeway = 200.0f;
 	MinimumProjectileSpawnDistance = 800;
 	TracerRoundInterval = 3;
+	TimeBetweenShots = 0.1f;
 }
 
 
@@ -57,7 +57,7 @@ bool ASWeaponInstant::ShouldDealDamage(AActor* TestActor) const
 	{
 		if (GetNetMode() != NM_Client ||
 			TestActor->Role == ROLE_Authority ||
-			TestActor->GetTearOff())
+			TestActor->bTearOff)
 		{
 			return true;
 		}
@@ -69,28 +69,11 @@ bool ASWeaponInstant::ShouldDealDamage(AActor* TestActor) const
 
 void ASWeaponInstant::DealDamage(const FHitResult& Impact, const FVector& ShootDir)
 {
-	float ActualHitDamage = HitDamage;
-
-	/* Handle special damage location on the zombie body (types are setup in the Physics Asset of the zombie */
-	USDamageType* DmgType = Cast<USDamageType>(DamageType->GetDefaultObject());
-	UPhysicalMaterial * PhysMat = Impact.PhysMaterial.Get();
-	if (PhysMat && DmgType)
-	{
-		if (PhysMat->SurfaceType == SURFACE_ZOMBIEHEAD)
-		{		
-			ActualHitDamage *= DmgType->GetHeadDamageModifier();	
-		}
-		else if (PhysMat->SurfaceType == SURFACE_ZOMBIELIMB)
-		{
-			ActualHitDamage *= DmgType->GetLimbDamageModifier();		
-		}
-	}
-
 	FPointDamageEvent PointDmg;
 	PointDmg.DamageTypeClass = DamageType;
 	PointDmg.HitInfo = Impact;
 	PointDmg.ShotDirection = ShootDir;
-	PointDmg.Damage = ActualHitDamage;
+	PointDmg.Damage = HitDamage;
 
 	Impact.GetActor()->TakeDamage(PointDmg.Damage, PointDmg, MyPawn->Controller, this);
 }
@@ -256,7 +239,7 @@ void ASWeaponInstant::SpawnImpactEffects(const FHitResult& Impact)
 		// TODO: Possible re-trace to get hit component that is lost during replication.
 
 		/* This function prepares an actor to spawn, but requires another call to finish the actual spawn progress. This allows manipulation of properties before entering into the level */
-		ASImpactEffect* EffectActor = GetWorld()->SpawnActorDeferred<ASImpactEffect>(ImpactTemplate, FTransform(Impact.ImpactPoint.Rotation(), Impact.ImpactPoint));
+		ASImpactEffect* EffectActor = GetWorld()->SpawnActorDeferred<ASImpactEffect>(ImpactTemplate, Impact.ImpactPoint, Impact.ImpactPoint.Rotation());
 		if (EffectActor)
 		{
 			EffectActor->SurfaceHit = Impact;
@@ -276,9 +259,7 @@ void ASWeaponInstant::SpawnTrailEffects(const FVector& EndPoint)
 
 	// Only spawn if a minimum distance is satisfied.
 	if (ShootDir.Size() < MinimumProjectileSpawnDistance)
-	{
 		return;
-	}
 
 	if (BulletsShotCount % TracerRoundInterval == 0)
 	{
@@ -290,12 +271,10 @@ void ASWeaponInstant::SpawnTrailEffects(const FVector& EndPoint)
 	}
 	else 
 	{
-		// Only create trails FX by other players.
+		// Ignore trails for self created trails.
 		ASCharacter* OwningPawn = GetPawnOwner();
 		if (OwningPawn && OwningPawn->IsLocallyControlled())
-		{
 			return;
-		}
 
 		if (TrailFX)
 		{

@@ -10,6 +10,8 @@ ASTimeOfDayManager::ASTimeOfDayManager()
 	AmbientAudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("AmbientAudioComp"));
 	AmbientAudioComp->bAutoActivate = false;
 
+	SetReplicates(true);
+
 	/*
 	
 	Content/Base/BP_TimeOfDayManager extends this class and fetches all required object references from the current level.
@@ -29,8 +31,6 @@ void ASTimeOfDayManager::BeginPlay()
 		OriginalSunBrightness = PrimarySunLight->GetBrightness();
 		TargetSunBrightness = OriginalSunBrightness;
 	}
-
-	PlayAmbientLoop();
 }
 
 
@@ -59,7 +59,7 @@ void ASTimeOfDayManager::Tick(float DeltaSeconds)
 
 			/* TimeOfDay is expressed in minutes, we need to convert this into a pitch rotation */
 			const float MinutesInDay = 24 * 60;
-			const float PitchOffset = 90; // The offset to account for time of day 0 should equal midnight
+			const float PitchOffset = 90; /* The offset to account for time of day 0 should equal midnight */
 			const float PitchRotation = 360 * ((MyGameState->ElapsedGameMinutes + PredictedIncrement) / MinutesInDay);
 
 			FRotator NewSunRotation = FRotator(PitchRotation + PitchOffset, 45.0f, 0);
@@ -71,24 +71,31 @@ void ASTimeOfDayManager::Tick(float DeltaSeconds)
 		bool CurrentNightState = MyGameState->GetIsNight();
 		if (CurrentNightState != LastNightState)
 		{
+			AmbientAudioComp->Stop();
+
 			if (CurrentNightState)
 			{
-				UGameplayStatics::PlaySound2D(this, SoundNightStarted);
+				// Play night started cue (position is irrelevant for non spatialized & attenuated sounds)
+				UGameplayStatics::PlaySoundAtLocation(this, SoundNightStarted, GetActorLocation());
+				AmbientAudioComp->SetSound(AmbientNight);
+
 				TargetSunBrightness = 0.01f;
 			}
 			else
 			{
-				UGameplayStatics::PlaySound2D(this, SoundNightEnded);
+				// Play daytime started cue (position is irrelevant for non spatialized & attenuated sounds)
+				UGameplayStatics::PlaySoundAtLocation(this, SoundNightEnded, GetActorLocation());
+				AmbientAudioComp->SetSound(AmbientDaytime);
+
 				TargetSunBrightness = OriginalSunBrightness;
 			}
 
-			/* Change to a new ambient loop */
-			PlayAmbientLoop();
+			AmbientAudioComp->Play();
 		}
 
 		/* Update sun brightness to transition between day and night
-			(Note: We cannot disable the sunlight because BP_SkySphere depends on an enabled light to update the skydome) */
-		const float LerpSpeed = 0.1f * GetWorldSettings()->GetEffectiveTimeDilation();
+			(Note: We cannot simply disable the sunlight because BP_SkySphere depends on an enabled light to update the skydome) */
+		const float LerpSpeed = 0.05f;
 		float CurrentSunBrightness = PrimarySunLight->GetBrightness();
 		float NewSunBrightness = FMath::Lerp(CurrentSunBrightness, TargetSunBrightness, LerpSpeed);
 		PrimarySunLight->SetBrightness(NewSunBrightness);
@@ -108,51 +115,9 @@ void ASTimeOfDayManager::UpdateSkylight()
 		if (MyGameState)
 		{
 			const float MinutesInDay = 24 * 60;
-			const float PredictedIncrement = MyGameState->GetTimeOfDayIncrement() * TimeSinceLastIncrement;
+			const float Alpha = 1 - (MyGameState->GetElapsedMinutesCurrentDay() / MinutesInDay);
 
-			float CurrentTime = MyGameState->GetElapsedMinutesCurrentDay() + PredictedIncrement;
-
-			/* Map the intensity from 0 - 12 - 24 hours into 0 - 1 - 0 alpha */
-			const float Alpha = FMath::Sin((CurrentTime / MinutesInDay) * 3.14);
-
-			/* Update Intensity */
-			float NewIntensity = FMath::Lerp(0.1, 1.0, Alpha);
-			if (SkylightIntensityCurve)
-			{
-				// If curve is specified, override the basic interp from above
-				NewIntensity = SkylightIntensityCurve->GetFloatValue(Alpha);
-			}
-			SkyLightActor->GetLightComponent()->SetIntensity(NewIntensity);
-
-			//UE_LOG(LogTemp, Warning, TEXT("Time of day alpha: %s"), *FString::SanitizeFloat(Alpha));
-
-			FVector LightColor = SkyLightActor->GetLightComponent()->GetLightColor();
-			if (SkylightColorCurve)
-			{
-				LightColor = SkylightColorCurve->GetVectorValue(Alpha);
-			}
-			SkyLightActor->GetLightComponent()->SetLightColor(LightColor);
+			SkyLightActor->GetLightComponent()->Intensity = FMath::Lerp(0.1, 1.0, Alpha);
 		}
 	}
-}
-
-
-void ASTimeOfDayManager::PlayAmbientLoop()
-{
-	AmbientAudioComp->Stop();
-
-	ASGameState* MyGameState = Cast<ASGameState>(GetWorld()->GetGameState());
-	if (MyGameState)
-	{
-		if (MyGameState->GetIsNight())
-		{
-			AmbientAudioComp->SetSound(AmbientNight);
-		}
-		else
-		{
-			AmbientAudioComp->SetSound(AmbientDaytime);
-		}
-	}
-
-	AmbientAudioComp->Play();
 }

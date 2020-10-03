@@ -8,9 +8,6 @@
 #include "SHUD.h"
 #include "SGameState.h"
 
-/* Define a log category for error messages */
-DEFINE_LOG_CATEGORY_STATIC(LogGame, Log, All);
-
 
 ASPlayerController::ASPlayerController(const class FObjectInitializer& ObjectInitializer)
 : Super(ObjectInitializer)
@@ -28,7 +25,7 @@ void ASPlayerController::UnFreeze()
 	Super::UnFreeze();
 
 	// Check if match is ending or has ended.
-	ASGameState* MyGameState = GetWorld()->GetGameState<ASGameState>();
+	ASGameState* MyGameState = Cast<ASGameState>(GetWorld()->GameState);
 	if (MyGameState && MyGameState->HasMatchEnded())
 	{
 		/* Don't allow spectating or respawns */
@@ -91,73 +88,9 @@ bool ASPlayerController::ServerSuicide_Validate()
 
 void ASPlayerController::ClientHUDStateChanged_Implementation(EHUDState NewState)
 {
-	ASHUD* HUD = Cast<ASHUD>(GetHUD());
-	if (HUD)
+	ASHUD* MyHUD = Cast<ASHUD>(GetHUD());
+	if (MyHUD)
 	{
-		HUD->OnStateChanged(NewState);
+		MyHUD->OnStateChanged(NewState);
 	}
 }
-
-
-void ASPlayerController::ClientHUDMessage_Implementation(EHUDMessage MessageID)
-{
-	/* Turn the ID into a message for the HUD to display */
-	FText TextMessage = GetText(MessageID);
-
-	ASHUD* HUD = Cast<ASHUD>(GetHUD());
-	if (HUD)
-	{
-		/* Implemented in SurvivalHUD Blueprint */
-		HUD->MessageReceived(TextMessage);
-	}
-}
-
-
-void ASPlayerController::ServerSendChatMessage_Implementation(class APlayerState* Sender, const FString& Message)
-{
-	for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
-	{
-		ASPlayerController* PC = Cast<ASPlayerController>(Iterator->Get());
-		if (PC)
-		{
-			PC->ClientReceiveChatMessage(Sender, Message);
-		}
-	}
-}
-
-
-void ASPlayerController::ClientReceiveChatMessage_Implementation(class APlayerState* Sender, const FString& Message)
-{
-	OnChatMessageReceived.Broadcast(Sender, Message);
-}
-
-
-bool ASPlayerController::ServerSendChatMessage_Validate(class APlayerState* Sender, const FString& Message)
-{
-	return true;
-}
-
-
-/* Temporarily set the namespace. If this was omitted, we should call NSLOCTEXT(Namespace, x, y) instead */
-#define LOCTEXT_NAMESPACE "HUDMESSAGES"
-
-FText ASPlayerController::GetText(EHUDMessage MsgID)
-{
-	switch (MsgID)
-	{
-	case EHUDMessage::Weapon_SlotTaken:
-		return LOCTEXT("WeaponSlotTaken", "Weapon slot already taken.");
-	case EHUDMessage::Character_EnergyRestored:
-		return LOCTEXT("CharacterEnergyRestored", "Energy Restored");
-	case EHUDMessage::Game_SurviveStart:
-		return LOCTEXT("GameNightStart", "SURVIVE THE NIGHT");
-	case EHUDMessage::Game_SurviveEnded:
-		return LOCTEXT("GameNightEnd", "Night survived! Prepare for the coming night.");
-	default:
-		UE_LOG(LogGame, Warning, TEXT("No Message set for enum value in SPlayerContoller::GetText(). "))
-		return FText::FromString("No Message Set");
-	}
-}
-
-/* Remove the namespace definition so it doesn't exist in other files compiled after this one. */
-#undef LOCTEXT_NAMESPACE

@@ -28,34 +28,24 @@ void ASHUD::DrawCenterDot()
 {
 	float CenterX = Canvas->ClipX / 2;
 	float CenterY = Canvas->ClipY / 2;
+
 	float CenterDotScale = 0.07f;
 
-	ASCharacter* Pawn = Cast<ASCharacter>(GetOwningPawn());
-	if (Pawn && Pawn->IsAlive())
+	ASPlayerController* PCOwner = Cast<ASPlayerController>(PlayerOwner);
+	if (PCOwner)
 	{
-		// Boost size when hovering over a usable object.
-		ASUsableActor* Usable = Pawn->GetUsableInView();
-		if (Usable)
+		ASCharacter* Pawn = Cast<ASCharacter>(PCOwner->GetPawn());
+		if (Pawn && Pawn->IsAlive())
 		{
-			CenterDotScale *= 1.5f;
+			// Boost size when hovering over a switchable object.
+			ASUsableActor* usable = Pawn->GetUsableInView();
+			if (usable)
+				CenterDotScale *= 1.5f;
+
+			Canvas->SetDrawColor(255, 255, 255, 255);
+			Canvas->DrawIcon(CenterDotIcon,
+				CenterX - CenterDotIcon.UL*CenterDotScale / 2.0f,
+				CenterY - CenterDotIcon.VL*CenterDotScale / 2.0f, CenterDotScale);
 		}
-
-		Canvas->SetDrawColor(255, 255, 255, 255);
-		Canvas->DrawIcon(CenterDotIcon,
-			CenterX - CenterDotIcon.UL*CenterDotScale / 2.0f,
-			CenterY - CenterDotIcon.VL*CenterDotScale / 2.0f, CenterDotScale);
 	}
-}
-
-
-
-void ASHUD::OnStateChanged_Implementation(EHUDState NewState)
-{
-	CurrentState = NewState;
-}
-
-
-EHUDState ASHUD::GetCurrentState()
-{
-	return CurrentState;
 }

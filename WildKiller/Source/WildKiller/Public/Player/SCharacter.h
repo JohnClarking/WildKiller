@@ -18,7 +18,7 @@ class WILDKILLER_API ASCharacter : public ASBaseCharacter
 	virtual void Tick(float DeltaSeconds) override;
 
 	/* Called to bind functionality to input */
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -26,6 +26,12 @@ class WILDKILLER_API ASCharacter : public ASBaseCharacter
 
 	/* Stop playing all montages */
 	void StopAllAnimMontages();
+
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	float GetLastNoiseLoudness();
+
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	float GetLastMakeNoiseTime();
 
 	float LastNoiseLoudness;
 
@@ -46,17 +52,6 @@ private:
 
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "AI")
-	float GetLastNoiseLoudness();
-
-	UFUNCTION(BlueprintCallable, Category = "AI")
-	float GetLastMakeNoiseTime();
-
-	FORCEINLINE UCameraComponent* GetCameraComponent()
-	{
-		return CameraComp;
-	}
-
 	/* MakeNoise hook to trigger AI noise emitting (Loudness between 0.0-1.0)  */
 	UFUNCTION(BlueprintCallable, Category = "AI")
 	void MakePawnNoise(float Loudness);
@@ -73,7 +68,10 @@ public:
 	void OnCrouchToggle();
 
 	/* Client mapped to Input */
-	void OnJump();
+	void OnStartJump();
+
+	/* Client mapped to Input */
+	void OnStopJump();
 
 	/* Client mapped to Input */
 	void OnStartSprinting();
@@ -81,7 +79,9 @@ public:
 	/* Client mapped to Input */
 	void OnStopSprinting();
 
-	virtual void SetSprinting(bool NewSprinting) override;
+	/* Character wants to run, checked during Tick to see if allowed */
+	UPROPERTY(Transient, Replicated)
+	bool bWantsToRun;
 
 	/* Is character currently performing a jump action. Resets on landed.  */
 	UPROPERTY(Transient, Replicated)
@@ -99,7 +99,26 @@ public:
 
 	bool ServerSetIsJumping_Validate(bool NewJumping);
 
-	virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode = 0) override;
+	void OnLanded(const FHitResult& Hit) override;
+
+	/* Client/local call to update sprint state  */
+	void SetSprinting(bool NewSprinting);
+
+	/* Server side call to update actual sprint state */
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSetSprinting(bool NewSprinting);
+
+	void ServerSetSprinting_Implementation(bool NewSprinting);
+
+	bool ServerSetSprinting_Validate(bool NewSprinting);
+
+	UFUNCTION(BlueprintCallable, Category = Movement)
+	bool IsSprinting() const;
+
+	float GetSprintingSpeedModifier() const;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float SprintingSpeedModifier;
 
 	/************************************************************************/
 	/* Object Interaction                                                   */
@@ -137,6 +156,31 @@ public:
 
 	void OnEndTargeting();
 
+	void SetTargeting(bool NewTargeting);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSetTargeting(bool NewTargeting);
+
+	void ServerSetTargeting_Implementation(bool NewTargeting);
+
+	bool ServerSetTargeting_Validate(bool NewTargeting);
+	
+	/* Is player aiming down sights */
+	UFUNCTION(BlueprintCallable, Category = "Targeting")
+	bool IsTargeting() const;
+
+	float GetTargetingSpeedModifier() const;
+
+	/* Retrieve Pitch/Yaw from current camera */
+	UFUNCTION(BlueprintCallable, Category = "Targeting")
+	FRotator GetAimOffsets() const;
+
+	UPROPERTY(Transient, Replicated)
+	bool bIsTargeting;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Targeting")
+	float TargetingSpeedModifier;
+
 	/************************************************************************/
 	/* Hunger                                                               */
 	/************************************************************************/
@@ -148,7 +192,7 @@ public:
 	float GetMaxHunger() const;
 
 	UFUNCTION(BlueprintCallable, Category = "PlayerCondition")
-	void RestoreCondition(float HealthRestored, float HungerRestored);
+	void ConsumeFood(float AmountRestored);
 
 	/* Increments hunger, used by timer. */
 	void IncrementHunger();
@@ -160,7 +204,7 @@ public:
 	float IncrementHungerAmount;
 
 	/* Limit when player suffers Hitpoints from extreme hunger */
-	UPROPERTY(BlueprintReadOnly, Category = "PlayerCondition")
+	UPROPERTY(EditDefaultsOnly, Category = "PlayerCondition")
 	float CriticalHungerThreshold;
 
 	UPROPERTY(EditDefaultsOnly, Category = "PlayerCondition", Replicated)
@@ -209,9 +253,7 @@ private:
 
 	/* Distance away from character when dropping inventory items. */
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory")
-	float DropWeaponMaxDistance;
-
-	void OnReload();
+	float DropItemDistance;
 
 	/* Mapped to input */
 	void OnStartFire();
@@ -249,16 +291,11 @@ private:
 
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	ASWeapon* GetCurrentWeapon() const;
-
 	/* Check if the specified slot is available, limited to one item per type (primary, secondary) */
 	bool WeaponSlotAvailable(EInventorySlot CheckSlot);
 
 	/* Check if pawn is allowed to fire weapon */
 	bool CanFire() const;
-
-	bool CanReload() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool IsFiring() const;
@@ -269,6 +306,8 @@ public:
 	/* All weapons/items the player currently holds */
 	UPROPERTY(Transient, Replicated)
 	TArray<ASWeapon*> Inventory;
+
+	void SpawnDefaultInventory();
 
 	void SetCurrentWeapon(class ASWeapon* newWeapon, class ASWeapon* LastWeapon = nullptr);
 
@@ -287,12 +326,17 @@ public:
 
 	void AddWeapon(class ASWeapon* Weapon);
 
-	void RemoveWeapon(class ASWeapon* Weapon, bool bDestroy);
+	void RemoveWeapon(class ASWeapon* Weapon);
 
 	UPROPERTY(Transient, ReplicatedUsing = OnRep_CurrentWeapon)
 	class ASWeapon* CurrentWeapon;
 
 	class ASWeapon* PreviousWeapon;
+
+	/* The default weapons to spawn with */
+	UPROPERTY(EditDefaultsOnly, Category = Inventory)
+	TArray<TSubclassOf<class ASWeapon>> DefaultInventoryClasses;
+
 
 	/* Update the weapon mesh to the newly equipped weapon, this is triggered during an anim montage.
 		NOTE: Requires an AnimNotify created in the Equip animation to tell us when to swap the meshes. */

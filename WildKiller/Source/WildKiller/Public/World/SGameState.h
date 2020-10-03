@@ -3,7 +3,6 @@
 #pragma once
 
 #include "GameFramework/GameState.h"
-#include "SPlayerController.h"
 #include "SGameState.generated.h"
 
 /**
@@ -14,16 +13,7 @@ class WILDKILLER_API ASGameState : public AGameState
 {
 	GENERATED_BODY()
 
-	/* Total accumulated score from all players  */
-	UPROPERTY(Replicated)
-	int32 TotalScore;
-
 public:
-
-	UFUNCTION(BlueprintCallable, Category = "Score")
-	int32 GetTotalScore();
-
-	void AddScore(int32 Score);
 
 	ASGameState(const class FObjectInitializer& ObjectInitializer);
 
@@ -66,18 +56,11 @@ public:
 
 	/* By passing in "exec" we expose it as a command line (press ~ to open) */
 	UFUNCTION(exec)
-	void SetTimeOfDay(float NewHourOfDay);
+	void SetTimeOfDay(float NewTimeOfDay);
 
 	/* NetMulticast will send this event to all clients that know about this object, in the case of GameState that means every client. */
 	UFUNCTION(Reliable, NetMulticast)
-	void BroadcastGameMessage(EHUDMessage NewMessage);
+	void BroadcastGameMessage(const FString& NewMessage);
 
-	void BroadcastGameMessage_Implementation(EHUDMessage MessageID);
-
-public:
-
-	virtual void AddPlayerState(APlayerState* PlayerState) override;
-
-	virtual void RemovePlayerState(APlayerState* PlayerState) override;
-
+	void BroadcastGameMessage_Implementation(const FString& NewMessage);
 };
