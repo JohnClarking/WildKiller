@@ -2,10 +2,11 @@
 
 #include "WildKiller.h"
 #include "SCoopGameMode.h"
-#include "NavigationSystem.h"
-#include "SPlayerState.h"
-#include "SCharacter.h"
-#include "SGameState.h"
+
+
+
+/* Define a log category for error messages */
+DEFINE_LOG_CATEGORY_STATIC(LogGameMode, Log, All);
 
 
 
@@ -55,47 +56,44 @@ void ASCoopGameMode::RestartPlayer(class AController* NewPlayer)
 	}
 
 	/* Get a point on the nav mesh near the other player */
-	FNavLocation StartLocation;
-	UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetNavigationSystem(this);
-	if (NavSystem && NavSystem->GetRandomPointInNavigableRadius(SpawnOrigin, 250.0f, StartLocation))
-	{
-		// Try to create a pawn to use of the default class for this player
-		if (NewPlayer->GetPawn() == nullptr && GetDefaultPawnClassForController(NewPlayer) != nullptr)
-		{
-			FActorSpawnParameters SpawnInfo;
-			SpawnInfo.Instigator = Instigator;
-			APawn* ResultPawn = GetWorld()->SpawnActor<APawn>(GetDefaultPawnClassForController(NewPlayer), StartLocation.Location, StartRotation, SpawnInfo);
-			if (ResultPawn == nullptr)
-			{
-				UE_LOG(LogGameMode, Warning, TEXT("Couldn't spawn Pawn of type %s at %s"), *GetNameSafe(DefaultPawnClass), &StartLocation.Location);
-			}
-			NewPlayer->SetPawn(ResultPawn);
-		}
+	FVector StartLocation = UNavigationSystem::GetRandomPointInNavigableRadius(NewPlayer, SpawnOrigin, 250.0f);
 
+	// Try to create a pawn to use of the default class for this player
+	if (NewPlayer->GetPawn() == nullptr && GetDefaultPawnClassForController(NewPlayer) != nullptr)
+	{
+		FActorSpawnParameters SpawnInfo;
+		SpawnInfo.Instigator = Instigator;
+		APawn* ResultPawn = GetWorld()->SpawnActor<APawn>(GetDefaultPawnClassForController(NewPlayer), StartLocation, StartRotation, SpawnInfo);
+		if (ResultPawn == nullptr)
+		{
+			UE_LOG(LogGameMode, Warning, TEXT("Couldn't spawn Pawn of type %s at %s"), *GetNameSafe(DefaultPawnClass), &StartLocation);
+		}
+		NewPlayer->SetPawn(ResultPawn);
+	}
+
+	if (NewPlayer->GetPawn() == nullptr)
+	{
+		NewPlayer->FailedToSpawnPawn();
+	}
+	else
+	{
+		NewPlayer->Possess(NewPlayer->GetPawn());
+
+		// If the Pawn is destroyed as part of possession we have to abort
 		if (NewPlayer->GetPawn() == nullptr)
 		{
 			NewPlayer->FailedToSpawnPawn();
 		}
 		else
 		{
-			NewPlayer->Possess(NewPlayer->GetPawn());
+			// Set initial control rotation to player start's rotation
+			NewPlayer->ClientSetRotation(NewPlayer->GetPawn()->GetActorRotation(), true);
 
-			// If the Pawn is destroyed as part of possession we have to abort
-			if (NewPlayer->GetPawn() == nullptr)
-			{
-				NewPlayer->FailedToSpawnPawn();
-			}
-			else
-			{
-				// Set initial control rotation to player start's rotation
-				NewPlayer->ClientSetRotation(NewPlayer->GetPawn()->GetActorRotation(), true);
+			FRotator NewControllerRot = StartRotation;
+			NewControllerRot.Roll = 0.f;
+			NewPlayer->SetControlRotation(NewControllerRot);
 
-				FRotator NewControllerRot = StartRotation;
-				NewControllerRot.Roll = 0.f;
-				NewPlayer->SetControlRotation(NewControllerRot);
-
-				SetPlayerDefaults(NewPlayer->GetPawn());
-			}
+			SetPlayerDefaults(NewPlayer->GetPawn());
 		}
 	}
 }
@@ -162,7 +160,7 @@ void ASCoopGameMode::CheckMatchEnd()
 		ASCharacter* MyPawn = Cast<ASCharacter>(*It);
 		if (MyPawn && MyPawn->IsAlive())
 		{
-			ASPlayerState* PS = Cast<ASPlayerState>(MyPawn->GetPlayerState());
+			ASPlayerState* PS = Cast<ASPlayerState>(MyPawn->PlayerState);
 			if (PS)
 			{
 				if (!PS->bIsABot)

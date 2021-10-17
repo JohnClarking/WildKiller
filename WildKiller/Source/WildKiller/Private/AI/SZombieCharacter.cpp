@@ -35,8 +35,23 @@ ASZombieCharacter::ASZombieCharacter(const class FObjectInitializer& ObjectIniti
 	GetMovementComponent()->NavAgentProps.AgentRadius = 42;
 	GetMovementComponent()->NavAgentProps.AgentHeight = 192;
 
+	MeleeCollisionComp = CreateDefaultSubobject<UCapsuleComponent>(TEXT("MeleeCollision"));
+	MeleeCollisionComp->SetRelativeLocation(FVector(45, 0, 25));
+	MeleeCollisionComp->SetCapsuleHalfHeight(60);
+	MeleeCollisionComp->SetCapsuleRadius(35, false);
+	MeleeCollisionComp->SetCollisionResponseToAllChannels(ECR_Ignore);
+	MeleeCollisionComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	MeleeCollisionComp->AttachParent = GetCapsuleComponent();
+
+	AudioLoopComp = CreateDefaultSubobject<UAudioComponent>(TEXT("ZombieLoopedSoundComp"));
+	AudioLoopComp->bAutoActivate = false;
+	AudioLoopComp->bAutoDestroy = false;
+	AudioLoopComp->AttachParent = RootComponent;
+
 	Health = 100;
-	PunchDamage = 10.0f;
+	MeleeDamage = 24.0f;
+	MeleeStrikeCooldown = 1.0f;
+	SprintingSpeedModifier = 3.0f;
 
 	/* By default we will not let the AI patrol, we can override this value per-instance. */
 	BotType = EBotBehaviorType::Passive;
@@ -56,6 +71,12 @@ void ASZombieCharacter::BeginPlay()
 		PawnSensingComp->OnSeePawn.AddDynamic(this, &ASZombieCharacter::OnSeePlayer);
 		PawnSensingComp->OnHearNoise.AddDynamic(this, &ASZombieCharacter::OnHearNoise);
 	}
+	if (MeleeCollisionComp)
+	{
+		MeleeCollisionComp->OnComponentBeginOverlap.AddDynamic(this, &ASZombieCharacter::OnMeleeCompBeginOverlap);
+	}
+
+	BroadcastUpdateAudioLoop(bSensedTarget);
 
 	/* Assign a basic name to identify the bots in the HUD. */
 	ASPlayerState* PS = Cast<ASPlayerState>(PlayerState);
@@ -83,10 +104,7 @@ void ASZombieCharacter::Tick(float DeltaSeconds)
 			AIController->SetTargetEnemy(nullptr);
 
 			/* Stop playing the hunting sound */
-			if (AudioCompHunting)
-			{
-				AudioCompHunting->FadeOut(0.5f, 0.0f);
-			}
+			BroadcastUpdateAudioLoop(false);
 		}
 	}
 }
@@ -101,9 +119,7 @@ void ASZombieCharacter::OnSeePlayer(APawn* Pawn)
 
 	if (!bSensedTarget)
 	{
-		PlayCharacterSound(SoundPlayerNoticed);
-
-		AudioCompHunting = PlayCharacterSound(SoundHunting);
+		BroadcastUpdateAudioLoop(true);
 	}
 
 	/* Keep track of the time the player was last sensed in order to clear the target */
@@ -128,9 +144,7 @@ void ASZombieCharacter::OnHearNoise(APawn* PawnInstigator, const FVector& Locati
 
 	if (!bSensedTarget)
 	{
-		PlayCharacterSound(SoundPlayerNoticed);
-
-		AudioCompHunting = PlayCharacterSound(SoundHunting);
+		BroadcastUpdateAudioLoop(true);
 	}
 
 	bSensedTarget = true;
@@ -144,15 +158,48 @@ void ASZombieCharacter::OnHearNoise(APawn* PawnInstigator, const FVector& Locati
 }
 
 
-void ASZombieCharacter::PunchHit(AActor* HitActor)
+void ASZombieCharacter::PerformMeleeStrike(AActor* HitActor)
 {
+	if (LastMeleeAttackTime > GetWorld()->GetTimeSeconds() - MeleeStrikeCooldown)
+	{
+		/* Set timer to start attacking as soon as the cooldown elapses. */
+		if (!TimerHandle_MeleeAttack.IsValid())
+		{
+			// TODO: Set Timer
+		}
+
+		/* Attacked before cooldown expired */
+		return;
+	}
+
 	if (HitActor && HitActor != this && IsAlive())
 	{
-		FPointDamageEvent PointDmg;
-		PointDmg.DamageTypeClass = PunchDamageType;
-		PointDmg.Damage = PunchDamage;
+		ACharacter* OtherPawn = Cast<ACharacter>(HitActor);
+		if (OtherPawn)
+		{
+			ASPlayerState* MyPS = Cast<ASPlayerState>(PlayerState);
+			ASPlayerState* OtherPS = Cast<ASPlayerState>(OtherPawn->PlayerState);
 
-		HitActor->TakeDamage(PointDmg.Damage, PointDmg, GetController(), this);
+			if (MyPS && OtherPS)
+			{
+				if (MyPS->GetTeamNumber() == OtherPS->GetTeamNumber())
+				{
+					/* Do not attack other zombies. */
+					return;
+				}
+
+				/* Set to prevent a zombie to attack multiple times in a very short time */
+				LastMeleeAttackTime = GetWorld()->GetTimeSeconds();
+
+				FPointDamageEvent DmgEvent;
+				DmgEvent.DamageTypeClass = PunchDamageType;
+				DmgEvent.Damage = MeleeDamage;
+
+				HitActor->TakeDamage(DmgEvent.Damage, DmgEvent, GetController(), this);
+
+				SimulateMeleeStrike();
+			}
+		}
 	}
 }
 
@@ -166,12 +213,19 @@ void ASZombieCharacter::SetBotType(EBotBehaviorType NewType)
 	{
 		AIController->SetBlackboardBotType(NewType);
 	}
+
+	BroadcastUpdateAudioLoop(bSensedTarget);
 }
 
 
 UAudioComponent* ASZombieCharacter::PlayCharacterSound(USoundCue* CueToPlay)
 {
-	return UGameplayStatics::PlaySoundAttached(CueToPlay, RootComponent, NAME_None, FVector::ZeroVector, EAttachLocation::SnapToTarget, true);
+	if (CueToPlay)
+	{
+		return UGameplayStatics::PlaySoundAttached(CueToPlay, RootComponent, NAME_None, FVector::ZeroVector, EAttachLocation::SnapToTarget, true);
+	}
+
+	return nullptr;
 }
 
 
@@ -180,8 +234,83 @@ void ASZombieCharacter::PlayHit(float DamageTaken, struct FDamageEvent const& Da
 	Super::PlayHit(DamageTaken, DamageEvent, PawnInstigator, DamageCauser, bKilled);
 
 	/* Stop playing the hunting sound */
-	if (AudioCompHunting && bKilled)
+	if (AudioLoopComp && bKilled)
 	{
-		AudioCompHunting->Stop();
+		AudioLoopComp->Stop();
+	}
+}
+
+
+void ASZombieCharacter::SimulateMeleeStrike_Implementation()
+{
+	PlayAnimMontage(MeleeAnimMontage);
+	PlayCharacterSound(SoundAttackMelee);
+}
+
+
+void ASZombieCharacter::OnMeleeCompBeginOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult & SweepResult)
+{
+	/* Stop any running attack timers */
+	TimerHandle_MeleeAttack.Invalidate();
+
+	PerformMeleeStrike(OtherActor);
+	
+	/* Set re-trigger timer to re-check overlapping pawns at melee attack rate interval */
+	GetWorldTimerManager().SetTimer(TimerHandle_MeleeAttack, this, &ASZombieCharacter::OnRetriggerMeleeStrike, MeleeStrikeCooldown, true);
+}
+
+
+void ASZombieCharacter::OnRetriggerMeleeStrike()
+{
+	/* Apply damage to a single random pawn in range. */
+	TArray<AActor*> Overlaps;
+	MeleeCollisionComp->GetOverlappingActors(Overlaps, ASBaseCharacter::StaticClass());
+	for (int32 i = 0; i < Overlaps.Num(); i++)
+	{
+		ASBaseCharacter* OverlappingPawn = Cast<ASBaseCharacter>(Overlaps[i]);
+		if (OverlappingPawn)
+		{
+			PerformMeleeStrike(OverlappingPawn);
+			//break; /* Uncomment to only attack one pawn maximum */
+		}
+	}
+
+	/* No pawns in range, cancel the retrigger timer */
+	if (Overlaps.Num() == 0)
+	{
+		TimerHandle_MeleeAttack.Invalidate();
+	}
+}
+
+
+bool ASZombieCharacter::IsSprinting() const
+{
+	/* Allow a zombie to sprint when he has seen a player */
+	return bSensedTarget && !GetVelocity().IsZero();
+}
+
+
+void ASZombieCharacter::BroadcastUpdateAudioLoop_Implementation(bool bNewSensedTarget)
+{
+	/* Start playing the hunting sound and the "noticed player" sound if the state is about to change */
+	if (bNewSensedTarget && !bSensedTarget)
+	{
+		PlayCharacterSound(SoundPlayerNoticed);
+
+		AudioLoopComp->SetSound(SoundHunting);
+		AudioLoopComp->Play();
+	}
+	else
+	{
+		if (BotType == EBotBehaviorType::Patrolling)
+		{
+			AudioLoopComp->SetSound(SoundWandering);
+			AudioLoopComp->Play();
+		}
+		else
+		{
+			AudioLoopComp->SetSound(SoundIdle);
+			AudioLoopComp->Play();
+		}
 	}
 }
