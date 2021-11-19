@@ -10,3 +10,4 @@ Saved
 WildKiller/Binaries/Win64/WildKiller.exp
 WildKiller/Binaries/Win64/WildKiller.lib
 *.log
+*.target.xml
