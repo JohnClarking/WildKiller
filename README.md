@@ -5,7 +5,7 @@ Third-person survival game for Unreal Engine 4 made entirely in C++. Originally 
 
 ## Project Overview
 
-The C++ Course features include building of a C++ game framework including an "action system" and event-driven code for flexible and re-usable game code the "unreal way". Multiplayer features, AI bots, SaveGame system, async loading of content, UMG menus and UI and so much more!
+The C++ features include building of a C++ game framework including an "action system" and event-driven code for flexible and re-usable game code the "unreal way". Multiplayer features, AI bots, SaveGame system, async loading of content, UMG menus and UI and so much more!
 
 ![Figure 0](Figures/0.jpg)
 
