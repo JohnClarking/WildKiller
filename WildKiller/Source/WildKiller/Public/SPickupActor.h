@@ -11,22 +11,22 @@
 UCLASS(ABSTRACT)
 class WILDKILLER_API ASPickupActor : public ASUsableActor
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
 	void BeginPlay() override;
 
+	virtual void OnUsed(APawn* InstigatorPawn) override;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundCue* PickupSound;
+
+	UPROPERTY(Transient, ReplicatedUsing = OnRep_IsActive)
+	bool bIsActive;
 
 	UFUNCTION()
 	void OnRep_IsActive();
 
 protected:
-
-	ASPickupActor(const FObjectInitializer& ObjectInitializer);
-
-	UPROPERTY(Transient, ReplicatedUsing = OnRep_IsActive)
-	bool bIsActive;
 
 	virtual void RespawnPickup();
 
@@ -35,8 +35,6 @@ protected:
 	virtual void OnRespawned();
 
 public:
-
-	virtual void OnUsed(APawn* InstigatorPawn) override;
 
 	/* Immediately spawn on begin play */
 	UPROPERTY(EditDefaultsOnly, Category = "Pickup")

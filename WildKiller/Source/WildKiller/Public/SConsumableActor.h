@@ -11,9 +11,7 @@
 UCLASS(ABSTRACT)
 class WILDKILLER_API ASConsumableActor : public ASPickupActor
 {
-	GENERATED_BODY()
-
-	ASConsumableActor(const FObjectInitializer& ObjectInitializer);
+	GENERATED_UCLASS_BODY()
 
 protected:
 

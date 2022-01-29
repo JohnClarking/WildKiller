@@ -21,9 +21,34 @@ enum class EWeaponState
 UCLASS(ABSTRACT, Blueprintable)
 class WILDKILLER_API ASWeapon : public AActor
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	void OnEquip();
+
+	virtual void OnUnEquip();
+
+	virtual void OnEquipFinished();
+
+	virtual void OnEnterInventory(ASCharacter* NewOwner);
+
+	virtual void OnLeaveInventory();
+
+	bool IsEquipped() const;
+
+	bool IsAttachedToPawn() const;
+
+	/** get weapon mesh (needs pawn owner to determine variant) */
+	UFUNCTION(BlueprintCallable, Category = "Game|Weapon")
+	USkeletalMeshComponent* GetWeaponMesh() const;
+
+	/** get pawn owner */
+	UFUNCTION(BlueprintCallable, Category = "Game|Weapon")
+	class ASCharacter* GetPawnOwner() const;
+
+	/** set the weapon's owning pawn */
+	void SetOwningPawn(ASCharacter* NewOwner);
 
 	float GetEquipStartedTime() const;
 
@@ -43,12 +68,14 @@ class WILDKILLER_API ASWeapon : public AActor
 
 	FTimerHandle EquipFinishedTimerHandle;
 
-protected:
-
-	ASWeapon(const FObjectInitializer& ObjectInitializer);
+	/* The class to spawn in the level when dropped */
+	UPROPERTY(EditDefaultsOnly, Category = "Game|Weapon")
+	TSubclassOf<class ASWeaponPickup> WeaponPickupClass;
 
 	/* The character socket to store this item at. */
 	EInventorySlot StorageSlot;
+
+protected:
 
 	/** pawn owner */
 	UPROPERTY(Transient, ReplicatedUsing = OnRep_MyPawn)
@@ -61,44 +88,18 @@ protected:
 	UFUNCTION()
 	void OnRep_MyPawn();
 
+	/* You can assign default values to function parameters, these are then optional to specify/override when calling the function. */
+	void AttachMeshToPawn(EInventorySlot Slot = EInventorySlot::Hands);
+
 	/** detaches weapon mesh from pawn */
 	void DetachMeshFromPawn();
 
-	virtual void OnEquipFinished();
-
-	bool IsEquipped() const;
-
-	bool IsAttachedToPawn() const;
-
 public:
-
-	/** get weapon mesh (needs pawn owner to determine variant) */
-	UFUNCTION(BlueprintCallable, Category = "Game|Weapon")
-	USkeletalMeshComponent* GetWeaponMesh() const;
-
-	virtual void OnUnEquip();
-
-	void OnEquip(bool bPlayAnimation);
-
-	/* Set the weapon's owning pawn */
-	void SetOwningPawn(ASCharacter* NewOwner);
-
-	/* Get pawn owner */
-	UFUNCTION(BlueprintCallable, Category = "Game|Weapon")
-	class ASCharacter* GetPawnOwner() const;
-
-	virtual void OnEnterInventory(ASCharacter* NewOwner);
-
-	virtual void OnLeaveInventory();
 
 	FORCEINLINE EInventorySlot GetStorageSlot()
 	{
 		return StorageSlot;
 	}
-
-	/* The class to spawn in the level when dropped */
-	UPROPERTY(EditDefaultsOnly, Category = "Game|Weapon")
-	TSubclassOf<class ASWeaponPickup> WeaponPickupClass;
 
 	/************************************************************************/
 	/* Fire & Damage Handling                                               */
@@ -111,9 +112,6 @@ public:
 	void StopFire();
 
 	EWeaponState GetCurrentState() const;
-
-	/* You can assign default values to function parameters, these are then optional to specify/override when calling the function. */
-	void AttachMeshToPawn(EInventorySlot Slot = EInventorySlot::Hands);
 
 protected:
 
@@ -142,23 +140,11 @@ private:
 	UFUNCTION(Reliable, Server, WithValidation)
 	void ServerStartFire();
 
-	void ServerStartFire_Implementation();
-
-	bool ServerStartFire_Validate();
-
 	UFUNCTION(Reliable, Server, WithValidation)
 	void ServerStopFire();
 
-	void ServerStopFire_Implementation();
-
-	bool ServerStopFire_Validate();
-
 	UFUNCTION(Reliable, Server, WithValidation)
 	void ServerHandleFiring();
-
-	void ServerHandleFiring_Implementation();
-
-	bool ServerHandleFiring_Validate();
 
 	void OnBurstStarted();
 

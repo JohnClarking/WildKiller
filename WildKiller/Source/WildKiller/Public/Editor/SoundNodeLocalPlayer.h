@@ -25,7 +25,7 @@ class WILDKILLER_API USoundNodeLocalPlayer : public USoundNode
 
 #if WITH_EDITOR
 
-	virtual FText GetInputPinName(int32 PinIndex) const override;
+	virtual FString GetInputPinName(int32 PinIndex) const override;
 
 #endif
 

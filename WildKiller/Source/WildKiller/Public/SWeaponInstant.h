@@ -11,7 +11,7 @@
 UCLASS(Abstract)
 class WILDKILLER_API ASWeaponInstant : public ASWeapon
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
 private:
 
@@ -19,7 +19,7 @@ private:
 	/* Visual Handlers                                                      */
 	/************************************************************************/
 
-	void SimulateInstantHit(const FVector& ImpactPoint);
+	void SimulateInstantHit(const FVector& Origin);
 
 	void SpawnImpactEffects(const FHitResult& Impact);
 
@@ -50,8 +50,6 @@ private:
 
 protected:
 
-	ASWeaponInstant(const FObjectInitializer& ObjectInitializer);
-
 	/************************************************************************/
 	/* Damage Processing                                                    */
 	/************************************************************************/
@@ -69,19 +67,11 @@ protected:
 	UFUNCTION(Reliable, Server, WithValidation)
 	void ServerNotifyHit(const FHitResult Impact, FVector_NetQuantizeNormal ShootDir);
 
-	void ServerNotifyHit_Implementation(const FHitResult Impact, FVector_NetQuantizeNormal ShootDir);
-
-	bool ServerNotifyHit_Validate(const FHitResult Impact, FVector_NetQuantizeNormal ShootDir);
-
 	UFUNCTION(Reliable, Server, WithValidation)
 	void ServerNotifyMiss(FVector_NetQuantizeNormal ShootDir);
 
-	void ServerNotifyMiss_Implementation(FVector_NetQuantizeNormal ShootDir);
-
-	bool ServerNotifyMiss_Validate(FVector_NetQuantizeNormal ShootDir);
-
 	UPROPERTY(Transient, ReplicatedUsing=OnRep_HitLocation)
-	FVector HitImpactNotify;
+	FVector HitOriginNotify;
 
 	UFUNCTION()
 	void OnRep_HitLocation();

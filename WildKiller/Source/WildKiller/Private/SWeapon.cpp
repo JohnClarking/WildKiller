@@ -108,29 +108,23 @@ void ASWeapon::DetachMeshFromPawn()
 }
 
 
-void ASWeapon::OnEquip(bool bPlayAnimation)
+void ASWeapon::OnEquip()
 {
+	AttachMeshToPawn();
+
 	bPendingEquip = true;
 	DetermineWeaponState();
 
-	if (bPlayAnimation)
+	float Duration = PlayWeaponAnimation(EquipAnim);
+	if (Duration <= 0.0f)
 	{
-		float Duration = PlayWeaponAnimation(EquipAnim);
-		if (Duration <= 0.0f)
-		{
-			// Failsafe
-			Duration = 0.5f;
-		}
-		EquipStartedTime = GetWorld()->TimeSeconds;
-		EquipDuration = Duration;
+		// Failsafe
+		Duration = 0.5f;
+	}
+	EquipStartedTime = GetWorld()->TimeSeconds;
+	EquipDuration = Duration;
 
-		GetWorldTimerManager().SetTimer(EquipFinishedTimerHandle, this, &ASWeapon::OnEquipFinished, Duration, false);
-	}
-	else
-	{
-		/* Immediately finish equipping */
-		OnEquipFinished();
-	}
+	GetWorldTimerManager().SetTimer(EquipFinishedTimerHandle, this, &ASWeapon::OnEquipFinished, Duration, false);
 
 	if (MyPawn && MyPawn->IsLocallyControlled())
 	{
@@ -141,6 +135,7 @@ void ASWeapon::OnEquip(bool bPlayAnimation)
 
 void ASWeapon::OnUnEquip()
 {
+	AttachMeshToPawn(StorageSlot);
 	bIsEquipped = false;
 	StopFire();
 
@@ -282,11 +277,12 @@ FVector ASWeapon::GetCameraDamageStartLocation(const FVector& AimDir) const
 
 	if (PC)
 	{
-		FRotator DummyRot;
-		PC->GetPlayerViewPoint(OutStartTrace, DummyRot);
+		FRotator dummyRot;
+		PC->GetPlayerViewPoint(OutStartTrace, dummyRot);
 
 		// Adjust trace so there is nothing blocking the ray between the camera and the pawn, and calculate distance from adjusted start
-		OutStartTrace = OutStartTrace + AimDir * (FVector::DotProduct((Instigator->GetActorLocation() - OutStartTrace), AimDir));
+		// TODO: Break down into easy to understand code (copied from ShooterGame)
+		OutStartTrace = OutStartTrace + AimDir * ((Instigator->GetActorLocation() - OutStartTrace) | AimDir);
 	}
 
 	return OutStartTrace;
@@ -366,6 +362,12 @@ void ASWeapon::SimulateWeaponFire()
 	}
 
 	PlayWeaponSound(FireSound);
+
+	// 	ASPlayerController* PC = (MyPawn != nullptr) ? Cast<ASPlayerController>(MyPawn->Controller) : nullptr;
+	// 	if (PC && PC->IsLocalController())
+	// 	{
+	// 		// TODO: Add camera roll oscillation
+	// 	}
 }
 
 

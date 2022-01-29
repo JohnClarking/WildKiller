@@ -11,14 +11,6 @@ ASTimeOfDayManager::ASTimeOfDayManager()
 	AmbientAudioComp->bAutoActivate = false;
 
 	SetReplicates(true);
-
-	/*
-	
-	Content/Base/BP_TimeOfDayManager extends this class and fetches all required object references from the current level.
-
-	SkyLight, DirectionalLight (& BP_SkySphere which is controlled in Blueprint only to update sun direction in the skybox)
-	
-	*/
 }
 
 
@@ -121,3 +113,4 @@ void ASTimeOfDayManager::UpdateSkylight()
 		}
 	}
 }
+

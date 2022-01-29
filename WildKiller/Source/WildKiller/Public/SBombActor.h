@@ -13,6 +13,8 @@ class WILDKILLER_API ASBombActor : public ASUsableActor
 {
 	GENERATED_UCLASS_BODY()
 
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	UPROPERTY(VisibleDefaultsOnly)
 	UParticleSystemComponent* ExplosionPCS;
 
@@ -35,7 +37,17 @@ class WILDKILLER_API ASBombActor : public ASUsableActor
 	USoundCue* FuzeSound;
 
 	/* Is fuze lit and counting down */
+	UPROPERTY(Transient, ReplicatedUsing=OnRep_FuzeActive)
 	bool bIsFuzeActive;
+
+	UPROPERTY(Transient, ReplicatedUsing=OnRep_Exploded)
+	bool bExploded;
+
+	UFUNCTION() // Must be marked with UFUNCTION() when used as OnRep notify function
+	void OnRep_FuzeActive();
+	
+	UFUNCTION() // Must be marked with UFUNCTION() when used as OnRep notify function
+	void OnRep_Exploded();
 
 	/* Initial time on the fuze */
 	UPROPERTY(EditDefaultsOnly, Category = "Bomb|Settings")
@@ -50,11 +62,16 @@ class WILDKILLER_API ASBombActor : public ASUsableActor
 	UPROPERTY(EditDefaultsOnly, Category = "Bomb|Settings")
 	TSubclassOf<UDamageType> DamageType;
 
-	virtual void BeginPlay() override;
+	/* Handle to manage the timer */
+	FTimerHandle FuzeTimerHandle;
 
 	/* Activates the bomb fuze */
 	virtual void OnUsed(APawn* InstigatorPawn) override;
 	
 	/* Explode the bomb */
 	void OnExplode();
+
+	void SimulateFuzeFX();
+
+	void SimulateExplosion();
 };

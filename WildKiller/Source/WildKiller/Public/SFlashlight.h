@@ -13,8 +13,6 @@ class WILDKILLER_API ASFlashlight : public ASWeapon
 {
 	GENERATED_BODY()
 
-	ASFlashlight(const FObjectInitializer& ObjectInitializer);
-
 	virtual void BeginPlay() override;
 
 private:
@@ -32,6 +30,8 @@ private:
 	float LastEmissiveStrength;
 
 public:
+
+	ASFlashlight(const FObjectInitializer& ObjectInitializer);
 
 	UPROPERTY(EditDefaultsOnly)
 	FName LightAttachPoint;

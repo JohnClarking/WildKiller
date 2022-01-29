@@ -10,7 +10,7 @@ void USoundNodeLocalPlayer::ParseNodes(FAudioDevice* AudioDevice, const UPTRINT 
 	// The accesses to the Pawn will be unsafe once we thread audio, deal with this at that point
 	check(IsInGameThread());
 
-	AActor* SoundOwner = ActiveSound.GetAudioComponentID() ? UAudioComponent::GetAudioComponentFromID(ActiveSound.GetAudioComponentID())->GetOwner() : nullptr;
+	AActor* SoundOwner = ActiveSound.AudioComponent.IsValid() ? ActiveSound.AudioComponent->GetOwner() : NULL;
 	APlayerController* PCOwner = Cast<APlayerController>(SoundOwner);
 	APawn* PawnOwner = (PCOwner ? PCOwner->GetPawn() : Cast<APawn>(SoundOwner));
 
@@ -32,9 +32,9 @@ void USoundNodeLocalPlayer::CreateStartingConnectors()
 
 
 #if WITH_EDITOR
-FText USoundNodeLocalPlayer::GetInputPinName(int32 PinIndex) const
+FString USoundNodeLocalPlayer::GetInputPinName(int32 PinIndex) const
 {
-	return (PinIndex == 0) ? NSLOCTEXT("Survival", "InputPinName", "Local") : NSLOCTEXT("Survival", "InputPinName", "Remote");
+	return (PinIndex == 0) ? TEXT("Local") : TEXT("Remote");
 }
 #endif
 

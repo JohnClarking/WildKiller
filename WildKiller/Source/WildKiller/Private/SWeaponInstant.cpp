@@ -10,9 +10,9 @@ ASWeaponInstant::ASWeaponInstant(const class FObjectInitializer& PCIP)
 	: Super(PCIP)
 {
 	HitDamage = 26;
-	WeaponRange = 15000;
+	WeaponRange = 10000;
 
-	AllowedViewDotHitDir = -1.0f;
+	AllowedViewDotHitDir = 0.8f;
 	ClientSideHitLeeway = 200.0f;
 	MinimumProjectileSpawnDistance = 800;
 	TracerRoundInterval = 3;
@@ -23,30 +23,11 @@ ASWeaponInstant::ASWeaponInstant(const class FObjectInitializer& PCIP)
 void ASWeaponInstant::FireWeapon()
 {	
 	const FVector AimDir = GetAdjustedAim();
-	const FVector CameraPos = GetCameraDamageStartLocation(AimDir);
-	const FVector EndPos = CameraPos + (AimDir * WeaponRange);
+	const FVector StartPos = GetCameraDamageStartLocation(AimDir);
+	const FVector EndPos = StartPos + (AimDir * WeaponRange);
 
-	/* Check for impact by tracing from the camera position */
-	FHitResult Impact = WeaponTrace(CameraPos, EndPos);
-
-	const FVector MuzzleOrigin = GetMuzzleLocation();
-
-	FVector AdjustedAimDir = AimDir;
-	if (Impact.bBlockingHit)
-	{
-		/* Adjust the shoot direction to hit at the crosshair. */
-		AdjustedAimDir = (Impact.ImpactPoint - MuzzleOrigin).GetSafeNormal();
-
-		/* Re-trace with the new aim direction coming out of the weapon muzzle */
-		Impact = WeaponTrace(MuzzleOrigin, MuzzleOrigin + (AdjustedAimDir * WeaponRange));
-	}
-	else
-	{
-		/* Use the maximum distance as the adjust direction */
-		Impact.ImpactPoint = FVector_NetQuantize(EndPos);
-	}
-
-	ProcessInstantHit(Impact, MuzzleOrigin, AdjustedAimDir);
+	const FHitResult Impact = WeaponTrace(StartPos, EndPos);
+	ProcessInstantHit(Impact, StartPos, AimDir);
 }
 
 
@@ -118,27 +99,24 @@ void ASWeaponInstant::ProcessInstantHitConfirmed(const FHitResult& Impact, const
 	// Play FX on remote clients
 	if (Role == ROLE_Authority)
 	{
-		HitImpactNotify = Impact.ImpactPoint;
+		HitOriginNotify = Origin;
 	}
 
 	// Play FX locally
 	if (GetNetMode() != NM_DedicatedServer)
 	{
-		SimulateInstantHit(Impact.ImpactPoint);
+		SimulateInstantHit(Origin);
 	}
 }
 
 
-void ASWeaponInstant::SimulateInstantHit(const FVector& ImpactPoint)
+void ASWeaponInstant::SimulateInstantHit(const FVector& Origin)
 {
-	const FVector MuzzleOrigin = GetMuzzleLocation();
+	const FVector StartTrace = Origin;
+	const FVector AimDir = GetAdjustedAim();
+	const FVector EndTrace = StartTrace + (AimDir * WeaponRange);
 
-	/* Adjust direction based on desired crosshair impact point and muzzle location */
-	const FVector AimDir = (ImpactPoint - MuzzleOrigin).GetSafeNormal();
-	
-	const FVector EndTrace = MuzzleOrigin + (AimDir * WeaponRange);
- 	const FHitResult Impact = WeaponTrace(MuzzleOrigin, EndTrace);
-
+ 	const FHitResult Impact = WeaponTrace(StartTrace, EndTrace);
 	if (Impact.bBlockingHit)
 	{
 		SpawnImpactEffects(Impact);
@@ -220,11 +198,11 @@ bool ASWeaponInstant::ServerNotifyMiss_Validate(FVector_NetQuantizeNormal ShootD
 void ASWeaponInstant::ServerNotifyMiss_Implementation(FVector_NetQuantizeNormal ShootDir)
 {
 	const FVector Origin = GetMuzzleLocation();
-	const FVector EndTrace = Origin + (ShootDir * WeaponRange);
 
 	// Play on remote clients
-	HitImpactNotify = EndTrace;
+	HitOriginNotify = Origin;
 
+	const FVector EndTrace = Origin + (ShootDir * WeaponRange);
 	if (GetNetMode() != NM_DedicatedServer)
 	{
 		SpawnTrailEffects(EndTrace);
@@ -291,7 +269,7 @@ void ASWeaponInstant::SpawnTrailEffects(const FVector& EndPoint)
 void ASWeaponInstant::OnRep_HitLocation()
 {
 	// Played on all remote clients
-	SimulateInstantHit(HitImpactNotify);
+	SimulateInstantHit(HitOriginNotify);
 }
 
 
@@ -299,5 +277,5 @@ void ASWeaponInstant::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & O
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME_CONDITION(ASWeaponInstant, HitImpactNotify, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(ASWeaponInstant, HitOriginNotify, COND_SkipOwner);
 }

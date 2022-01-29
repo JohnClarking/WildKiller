@@ -25,46 +25,98 @@ ASBombActor::ASBombActor(const class FObjectInitializer& ObjectInitializer)
 	// Let the bomb be thrown and roll around
 	MeshComp->SetSimulatePhysics(true);
 
-	MaxFuzeTime = 5.0f;
+	MaxFuzeTime = 3.0f;
 	ExplosionDamage = 100;
-	ExplosionRadius = 512;
+	ExplosionRadius = 1024;
+
+	SetReplicates(true);
+	bReplicateMovement = true;
 }
 
 
-void ASBombActor::BeginPlay()
+void ASBombActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	Super::BeginPlay();
+	Super::EndPlay(EndPlayReason);
+
+	// Ensure the fuze timer is cleared
+	GetWorld()->GetTimerManager().ClearTimer(FuzeTimerHandle);
+
+	// Alternatively you can clear ALL timers.
+	/*GetWorld()->GetTimerManager().ClearAllTimersForObject(this);*/
 }
 
 
 void ASBombActor::OnUsed(APawn* InstigatorPawn)
 {
 	Super::OnUsed(InstigatorPawn);
-	// TODO: Setup instigator controller (we might require this for ApplyRadialDamage)
 
 	if (!bIsFuzeActive)
 	{
+		// This will trigger the SimulateFuzeFX() on the clients
 		bIsFuzeActive = true;
 
-		if (FuzeSound)
-		{
-			AudioComp->SetSound(FuzeSound);
-			AudioComp->FadeIn(0.25f);
-		}
-		if (FuzeFX)
-		{
-			FuzePCS->SetTemplate(FuzeFX);
-			FuzePCS->ActivateSystem();
-		}
+		// Repnotify does not trigger on the server, so call the function here directly.
+		SimulateFuzeFX();
 
-		// Active the fuze to explode the bomb after several seconds
-		FTimerHandle TimerHandle;
-		GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &ASBombActor::OnExplode, MaxFuzeTime, false);
+		// Activate the fuze to explode the bomb after several seconds
+		GetWorldTimerManager().SetTimer(FuzeTimerHandle, this, &ASBombActor::OnExplode, MaxFuzeTime, false);
 	}
 }
 
 
 void ASBombActor::OnExplode()
+{
+	if (bExploded)
+		return;
+
+	// Notify the clients to simulate the explosion
+	bExploded = true;
+	
+	// Run on server side (OnExplode is executed on the server) too
+	SimulateExplosion();
+
+	// Apply damage to player, enemies and environmental objects
+	TArray<AActor*> IgnoreActors;
+	UGameplayStatics::ApplyRadialDamage(this, ExplosionDamage, GetActorLocation(), ExplosionRadius, DamageType, IgnoreActors, this, nullptr);
+
+	// TODO: Apply radial impulse to supporting objects
+}
+
+
+void ASBombActor::OnRep_FuzeActive()
+{
+	if (bIsFuzeActive && !bExploded)
+	{
+		SimulateFuzeFX();
+	}
+}
+
+
+void ASBombActor::OnRep_Exploded()
+{
+	if (bExploded)
+	{
+		SimulateExplosion();
+	}
+}
+
+
+void ASBombActor::SimulateFuzeFX()
+{
+	if (FuzeSound)
+	{
+		AudioComp->SetSound(FuzeSound);
+		AudioComp->FadeIn(0.25f);
+	}
+	if (FuzeFX)
+	{
+		FuzePCS->SetTemplate(FuzeFX);
+		FuzePCS->ActivateSystem();
+	}
+}
+
+
+void ASBombActor::SimulateExplosion()
 {
 	// First deactivate all running fuze effects
 	FuzePCS->DeactivateSystem();
@@ -83,14 +135,13 @@ void ASBombActor::OnExplode()
 		ExplosionPCS->SetTemplate(ExplosionFX);
 		ExplosionPCS->ActivateSystem();
 	}
+}
 
-	// Apply damage to player, enemies and environmental objects
-	TArray<AActor*> IgnoreActors;
-	UGameplayStatics::ApplyRadialDamage(this, ExplosionDamage, GetActorLocation(), ExplosionRadius, DamageType, IgnoreActors, this, NULL);
 
-	// TODO: Deal Damage to objects that support it
+void ASBombActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	// TODO: Apply radial impulse to supporting objects
-
-	// TODO: Prepare to destroy self
+	DOREPLIFETIME(ASBombActor, bIsFuzeActive);
+	DOREPLIFETIME(ASBombActor, bExploded);
 }
